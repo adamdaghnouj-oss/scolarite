@@ -1,0 +1,327 @@
+@startuml
+title Complete Class Diagram (Student Portal)
+
+skinparam shadowing false
+skinparam roundcorner 14
+skinparam dpi 180
+skinparam backgroundColor white
+skinparam class {
+  BackgroundColor #EAF3FF
+  BorderColor #6B87B5
+  ArrowColor #6B87B5
+  FontColor #1E2A3A
+  AttributeIconSize 0
+}
+
+hide circle
+skinparam stereotypeCBackgroundColor #EAF3FF
+
+' ===== Core identity =====
+class User {
+  +id: bigint
+  +name: string
+  +email: string
+  +password: string
+  +role: Role
+  +is_verified: boolean
+  +verification_code: string
+  +created_at: timestamp
+  --
+  +login()
+  +logout()
+  +changePassword()
+  +verifyEmail()
+  +resetPassword()
+}
+
+enum Role {
+  student
+  professor
+  administrateur
+  directeur_etudes
+}
+
+class Student {
+  +id: bigint
+  +user_id: bigint
+  +matricule: string
+  +classe_id: bigint <<nullable>>
+  +phone: string
+  +date_of_birth: date
+  +place_of_birth: string
+  +gender: Gender
+  +overall_status: ValidationStatus
+  +approved_at: timestamp <<nullable>>
+  --
+  +completeProfile()
+  +requestValidation()
+  +consultGrades()
+  +consultSchedule()
+  +requestDocument()
+}
+
+enum Gender {
+  male
+  female
+  other
+}
+
+enum ValidationStatus {
+  in_progress
+  pending
+  accepted
+  rejected
+}
+
+class ParentInfo {
+  +id: bigint
+  +student_id: bigint
+  +overall_status: ValidationStatus
+  +submitted_at: timestamp <<nullable>>
+  --
+  +updateFatherInfo()
+  +updateMotherInfo()
+  +submitParentInfo()
+}
+
+class Professor {
+  +id: bigint
+  +user_id: bigint
+  +matricule: string
+  +department: string
+  +specialite: string
+  +status: string
+  --
+  +viewAssignedClasses()
+  +inputGrades()
+  +submitAbsenceReport()
+}
+
+class Administrateur {
+  +id: bigint
+  +user_id: bigint
+  +departement: string
+  --
+  +manageUsers()
+  +manageClasses()
+  +validateStudentInfo()
+  +generateReports()
+}
+
+class DirecteurEtudes {
+  +id: bigint
+  +user_id: bigint
+  +matricule: string
+  +departement: string
+  --
+  +validateSchedules()
+  +resolveGradeDisputes()
+  +viewAcademicProgress()
+}
+
+' ===== Academic structure =====
+class Classe {
+  +id: bigint
+  +name: string
+  +department: string
+  +annee_scolaire: string
+  +professor_id: bigint <<nullable>>
+  +created_at: timestamp
+  --
+  +addStudent()
+  +removeStudent()
+  +assignProfessor()
+  +getStudentList()
+}
+
+class ClassStudent {
+  +id: bigint
+  +class_id: bigint
+  +student_id: bigint
+  +enrolled_at: timestamp
+  +status: EnrollmentStatus
+  --
+  +enroll()
+  +dropClass()
+}
+
+enum EnrollmentStatus {
+  active
+  dropped
+}
+
+class Schedule {
+  +id: bigint
+  +class_id: bigint
+  +professor_id: bigint
+  +subject: string
+  +day_of_week: DayOfWeek
+  +start_time: time
+  +end_time: time
+  +room: string
+  +semester: string
+  +status: ScheduleStatus
+  --
+  +createSchedule()
+  +validateSchedule()
+}
+
+enum DayOfWeek {
+  monday
+  tuesday
+  wednesday
+  thursday
+  friday
+  saturday
+  sunday
+}
+
+enum ScheduleStatus {
+  draft
+  pending
+  validated
+  rejected
+}
+
+class Grade {
+  +id: bigint
+  +student_id: bigint
+  +class_id: bigint
+  +professor_id: bigint
+  +subject: string
+  +exam_type: ExamType
+  +score: decimal
+  +max_score: decimal
+  +coefficient: decimal
+  +semester: string
+  +status: GradeStatus
+  --
+  +publishGrade()
+  +appealGrade()
+}
+
+enum ExamType {
+  cc
+  td
+  tp
+  exam
+  rattrapage
+}
+
+enum GradeStatus {
+  draft
+  published
+}
+
+class GradeDispute {
+  +id: bigint
+  +student_id: bigint
+  +grade_id: bigint
+  +reason: text
+  +status: DisputeStatus
+  +director_comment: text <<nullable>>
+  +new_grade: decimal <<nullable>>
+  --
+  +fileDispute()
+  +resolveDispute()
+}
+
+enum DisputeStatus {
+  submitted
+  in_review
+  resolved
+  rejected
+}
+
+class AbsenceReport {
+  +id: bigint
+  +professor_id: bigint
+  +student_id: bigint
+  +class_id: bigint
+  +date: date
+  +hours_missed: int
+  +reason: text
+  +status: AbsenceStatus
+  +admin_comment: text <<nullable>>
+  --
+  +submitReport()
+  +approveAbsence()
+}
+
+enum AbsenceStatus {
+  submitted
+  approved
+  rejected
+}
+
+class DocumentRequest {
+  +id: bigint
+  +student_id: bigint
+  +document_type: DocumentType
+  +copies: int
+  +status: DocumentStatus
+  +price: decimal
+  +payment_status: PaymentStatus
+  +generated_file: string <<nullable>>
+  +requested_at: timestamp
+  --
+  +requestDocument()
+  +processRequest()
+  +deliverDocument()
+}
+
+enum DocumentType {
+  certificat_scolarite
+  releve_notes
+  attestation_reussite
+  autre
+}
+
+enum DocumentStatus {
+  draft
+  pending_payment
+  pending
+  processing
+  ready
+  delivered
+  rejected
+}
+
+enum PaymentStatus {
+  unpaid
+  paid
+}
+
+' ===== Relations (multiplicities) =====
+User "1" -- "0..1" Student : has profile
+User "1" -- "0..1" Professor : has profile
+User "1" -- "0..1" Administrateur : has profile
+User "1" -- "0..1" DirecteurEtudes : has profile
+
+Student "1" -- "0..1" ParentInfo : provides
+
+Classe "0..1" -- "1" Professor : assigned
+Classe "1" -- "many" Schedule : has
+Professor "1" -- "many" Schedule : teaches
+
+Classe "1" -- "many" ClassStudent : enrollments
+Student "1" -- "many" ClassStudent : enrollments
+
+Student "1" -- "many" Grade : receives
+Classe "1" -- "many" Grade : for
+Professor "1" -- "many" Grade : inputs
+
+Student "1" -- "many" AbsenceReport : concerns
+Classe "1" -- "many" AbsenceReport : in
+Professor "1" -- "many" AbsenceReport : submits
+
+Student "1" -- "many" DocumentRequest : requests
+
+Student "1" -- "many" GradeDispute : files
+Grade "1" -- "0..1" GradeDispute : dispute
+
+DirecteurEtudes "1" -- "many" GradeDispute : resolves
+DirecteurEtudes "1" -- "many" Schedule : validates
+Administrateur "1" -- "many" Student : validates
+
+@enduml

@@ -1,0 +1,24 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('student_story_views', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('story_id')->constrained('student_stories')->cascadeOnDelete();
+            $table->foreignId('viewer_student_id')->constrained('students')->cascadeOnDelete();
+            $table->timestamps();
+            $table->unique(['story_id', 'viewer_student_id']);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('student_story_views');
+    }
+};

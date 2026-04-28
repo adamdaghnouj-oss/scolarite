@@ -1,0 +1,45 @@
+:root{
+  --app-bg: #fbf4e9;
+  --app-panel: #ffffff;
+  --app-ink: #111827;
+  --app-muted: #6b7280;
+
+  --app-border: rgba(17, 24, 39, 0.20);
+  --app-shadow: 0 20px 60px rgba(17, 24, 39, 0.08);
+
+  --app-accent: #f4b84a;
+  --app-accent-2: #b8e1c4;
+  --app-accent-3: #cdb8ff;
+  --app-accent-4: #ffd3db;
+
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--app-ink);
+  background: var(--app-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html, body {
+  height: 100%;
+}
+
+body{
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--app-bg);
+  color: var(--app-ink);
+}
+
+a{
+  color: inherit;
+  text-decoration: none;
+}
+
+*{
+  box-sizing: border-box;
+}

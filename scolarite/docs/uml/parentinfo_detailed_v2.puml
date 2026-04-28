@@ -1,0 +1,97 @@
+@startuml
+title Student Parent Information (Detailed)
+
+skinparam shadowing false
+skinparam roundcorner 14
+skinparam dpi 180
+skinparam backgroundColor white
+skinparam class {
+  BackgroundColor #FFF3D9
+  BorderColor #B79A54
+  ArrowColor #B79A54
+  FontColor #1E2A3A
+  AttributeIconSize 0
+}
+hide circle
+
+enum ValidationStatus {
+  in_progress
+  pending
+  accepted
+  rejected
+}
+
+class Student {
+  +id: bigint
+  +matricule: string
+  +overall_status: ValidationStatus
+}
+
+class ParentInfo {
+  +id: bigint
+  +student_id: bigint
+  +overall_status: ValidationStatus
+  +submitted_at: timestamp <<nullable>>
+  --
+  ' Father (data + per-field validation)
+  +father_first_name: string
+  +father_first_name_status: ValidationStatus
+  +father_last_name: string
+  +father_last_name_status: ValidationStatus
+  +father_phone: string
+  +father_phone_status: ValidationStatus
+  +father_email: string <<nullable>>
+  +father_email_status: ValidationStatus
+  +father_job: string
+  +father_job_status: ValidationStatus
+  +father_cin: string <<nullable>>
+  +father_cin_status: ValidationStatus
+  +father_address: string
+  +father_address_status: ValidationStatus
+  +father_city: string
+  +father_city_status: ValidationStatus
+  +father_postal_code: string <<nullable>>
+  +father_postal_code_status: ValidationStatus
+  --
+  ' Mother (data + per-field validation)
+  +mother_first_name: string
+  +mother_first_name_status: ValidationStatus
+  +mother_last_name: string
+  +mother_last_name_status: ValidationStatus
+  +mother_phone: string
+  +mother_phone_status: ValidationStatus
+  +mother_email: string <<nullable>>
+  +mother_email_status: ValidationStatus
+  +mother_job: string
+  +mother_job_status: ValidationStatus
+  +mother_cin: string <<nullable>>
+  +mother_cin_status: ValidationStatus
+  +mother_address: string
+  +mother_address_status: ValidationStatus
+  +mother_city: string
+  +mother_city_status: ValidationStatus
+  +mother_postal_code: string <<nullable>>
+  +mother_postal_code_status: ValidationStatus
+  --
+  ' Household / relationship
+  +parents_relationship: string
+  +parents_relationship_status: ValidationStatus
+  +guardian_full_name: string <<nullable>>
+  +guardian_full_name_status: ValidationStatus
+  +guardian_phone: string <<nullable>>
+  +guardian_phone_status: ValidationStatus
+  --
+  +updateFatherInfo()
+  +updateMotherInfo()
+  +submitParentInfo()
+}
+
+Student "1" -- "0..1" ParentInfo
+
+note right of ParentInfo
+  Includes 30+ fields to capture\n
+  complete parent/guardian info\n
+  with individual validation status.
+end note
+
+@enduml

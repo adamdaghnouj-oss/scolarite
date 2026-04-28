@@ -1,0 +1,40 @@
+#root{
+  min-height: 100vh;
+}
+
+.lang-switcher {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2000;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 999px;
+  padding: 8px 10px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(4px);
+}
+
+.lang-switcher__label {
+  font-size: 12px;
+  color: #333;
+}
+
+.lang-switcher__btn {
+  border: 1px solid rgba(0, 0, 0, 0.16);
+  background: #fff;
+  color: #222;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.lang-switcher__btn.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
