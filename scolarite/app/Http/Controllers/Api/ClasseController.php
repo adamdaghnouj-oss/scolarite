@@ -7,11 +7,18 @@ use App\Models\Classe;
 use App\Models\Student;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class ClasseController extends Controller
 {
+    private function isPlaceholderClass(Request $request): bool
+    {
+        $name = (string) $request->input('name', '');
+        return in_array($name, ['YearPlaceholder', 'DeptPlaceholder'], true);
+    }
+
     // List all classes (with student count)
     public function index()
     {
@@ -28,16 +35,24 @@ class ClasseController extends Controller
     // Create a class
     public function store(Request $request)
     {
+        $requiresNiveau = !$this->isPlaceholderClass($request);
         $request->validate([
             'name' => 'required|string|max:100',
             'departement' => 'nullable|string|max:100',
             'annee_scolaire' => 'nullable|string|max:20',
+            'niveau' => [
+                Rule::requiredIf($requiresNiveau),
+                'nullable',
+                'string',
+                Rule::in(['first', 'second', 'third_pfe']),
+            ],
         ]);
 
         $classe = Classe::create([
             'name' => $request->name,
             'departement' => $request->departement,
             'annee_scolaire' => $request->annee_scolaire,
+            'niveau' => $request->niveau,
         ]);
 
         return response()->json($classe, 201);
@@ -47,15 +62,23 @@ class ClasseController extends Controller
     public function update(Request $request, $id)
     {
         $classe = Classe::findOrFail($id);
+        $requiresNiveau = !$this->isPlaceholderClass($request);
         $request->validate([
             'name' => 'required|string|max:100',
             'departement' => 'nullable|string|max:100',
             'annee_scolaire' => 'nullable|string|max:20',
+            'niveau' => [
+                Rule::requiredIf($requiresNiveau),
+                'nullable',
+                'string',
+                Rule::in(['first', 'second', 'third_pfe']),
+            ],
         ]);
         $classe->update([
             'name' => $request->name,
             'departement' => $request->departement,
             'annee_scolaire' => $request->annee_scolaire,
+            'niveau' => $request->niveau,
         ]);
         return response()->json($classe);
     }
@@ -85,6 +108,85 @@ class ClasseController extends Controller
             ];
         });
         return response()->json($students);
+    }
+
+    /**
+     * Students that can be assigned to this class (not already in this class).
+     * Optional query: q — search name, email, or matricule.
+     */
+    public function attachCandidates(Request $request, $id)
+    {
+        $classe = Classe::findOrFail($id);
+        $q = trim((string) $request->query('q', ''));
+        $query = Student::with(['user', 'classeObj'])
+            ->whereHas('user', fn ($uq) => $uq->where('role', 'student'))
+            ->where(function ($w) use ($classe) {
+                $w->whereNull('class_id')
+                    ->orWhere('class_id', '!=', $classe->id);
+            });
+
+        if ($q !== '') {
+            $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $q);
+            $like = '%' . $escaped . '%';
+            $query->where(function ($w) use ($like) {
+                $w->where('matricule', 'like', $like)
+                    ->orWhereHas('user', function ($uq) use ($like) {
+                        $uq->where('name', 'like', $like)
+                            ->orWhere('email', 'like', $like);
+                    });
+            });
+        }
+
+        $students = $query->orderBy('matricule')->limit(200)->get()->map(function ($s) {
+            return [
+                'id' => $s->id,
+                'user_id' => $s->user_id,
+                'name' => $s->user->name ?? '',
+                'email' => $s->user->email ?? '',
+                'matricule' => $s->matricule,
+                'current_class_id' => $s->class_id,
+                'current_class_name' => $s->classeObj?->name ?? ($s->classe ?: null),
+            ];
+        });
+
+        return response()->json($students);
+    }
+
+    /** Assign an existing student record to this class (moves from another class if needed). */
+    public function attachStudent(Request $request, $id)
+    {
+        $classe = Classe::findOrFail($id);
+        $request->validate([
+            'student_id' => 'required|integer|exists:students,id',
+        ]);
+
+        $student = Student::with('user')->findOrFail($request->student_id);
+
+        if (!$student->user || $student->user->role !== 'student') {
+            return response()->json(['message' => 'Invalid student account.'], 422);
+        }
+
+        if ((int) $student->class_id === (int) $classe->id) {
+            return response()->json(['message' => 'This student is already in this class.'], 422);
+        }
+
+        $student->update([
+            'class_id' => $classe->id,
+            'classe' => $classe->name,
+        ]);
+        $student->refresh();
+        $student->load('user');
+
+        return response()->json([
+            'id' => $student->id,
+            'user_id' => $student->user_id,
+            'name' => $student->user->name ?? '',
+            'email' => $student->user->email ?? '',
+            'matricule' => $student->matricule,
+            'classe' => $student->classe,
+            'class_id' => $student->class_id,
+            'created_at' => $student->created_at,
+        ], 201);
     }
 
     // Add a new student to a class

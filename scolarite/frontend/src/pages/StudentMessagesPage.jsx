@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/axios";
 import MessagingNavRail from "../components/MessagingNavRail";
+import MessageImageLightbox from "../components/MessageImageLightbox";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./StudentMessagesPage.css";
 
@@ -88,6 +89,10 @@ export default function StudentMessagesPage() {
   const [query, setQuery] = useState("");
   const [myStudentId, setMyStudentId] = useState(null);
   const [pageError, setPageError] = useState("");
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingBody, setEditingBody] = useState("");
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [imageLightboxIndex, setImageLightboxIndex] = useState(null);
   const requestedFriendId = searchParams.get("friend");
   const fileRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -226,15 +231,18 @@ export default function StudentMessagesPage() {
     scrollToBottom(false);
   }, [messages]);
 
-  async function sendMessage({ imageFile = null } = {}) {
+  async function sendMessage({ file = null } = {}) {
     if (selectedType !== "class" && !selected?.id) return;
     const trimmed = text.trim();
-    if (!trimmed && !imageFile) return;
+    if (!trimmed && !file) return;
     setSending(true);
     try {
       const fd = new FormData();
       if (trimmed) fd.append("body", trimmed);
-      if (imageFile) fd.append("image", imageFile);
+      if (file) {
+        if (String(file.type || "").startsWith("image/")) fd.append("image", file);
+        else if (String(file.type || "").includes("pdf")) fd.append("pdf", file);
+      }
       const url = selectedType === "class"
         ? "/messages/class/thread"
         : `/messages/threads/${selected.id}`;
@@ -249,6 +257,36 @@ export default function StudentMessagesPage() {
       await loadClassConversation(true);
     } finally {
       setSending(false);
+    }
+  }
+
+  async function updateMessage(messageId) {
+    const body = editingBody.trim();
+    if (!body) return;
+    const url = selectedType === "class"
+      ? `/messages/class/messages/${messageId}`
+      : `/messages/threads/messages/${messageId}`;
+    try {
+      const res = await api.put(url, { body });
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, ...res.data } : m)));
+      setEditingMessageId(null);
+      setEditingBody("");
+      setOpenMenuId(null);
+    } catch {
+      setPageError("Failed to update message.");
+    }
+  }
+
+  async function deleteMessage(messageId) {
+    const url = selectedType === "class"
+      ? `/messages/class/messages/${messageId}`
+      : `/messages/threads/messages/${messageId}`;
+    try {
+      await api.delete(url);
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+      setOpenMenuId(null);
+    } catch {
+      setPageError("Failed to delete message.");
     }
   }
 
@@ -343,6 +381,16 @@ export default function StudentMessagesPage() {
     ? filteredConversations.filter((item) => item && item.friend && item.friend.id)
     : [];
   const safeMessages = Array.isArray(messages) ? messages.filter((m) => m && typeof m === "object") : [];
+
+  const messageImageGallery = useMemo(() => {
+    const safe = Array.isArray(messages) ? messages.filter((m) => m && typeof m === "object") : [];
+    return safe.filter((m) => m.image_url).map((m) => ({ id: m.id, url: m.image_url }));
+  }, [messages]);
+
+  function openMessageImageLightbox(messageId) {
+    const i = messageImageGallery.findIndex((g) => g.id === messageId);
+    if (i >= 0) setImageLightboxIndex(i);
+  }
 
   return (
     <div className="sm-page">
@@ -471,10 +519,43 @@ export default function StudentMessagesPage() {
                           {m.sender_name || "Student"}
                         </button>
                       ) : null}
-                      {m.body ? <p>{m.body}</p> : null}
-                      {m.image_url ? <img src={m.image_url} alt="message" /> : null}
+                      {editingMessageId === m.id ? (
+                        <div style={{ display: "grid", gap: 6 }}>
+                          <input value={editingBody} onChange={(e) => setEditingBody(e.target.value)} />
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button type="button" className="sm-icon-btn sm-send" onClick={() => updateMessage(m.id)}>Save</button>
+                            <button type="button" className="sm-icon-btn" onClick={() => setEditingMessageId(null)}>Cancel</button>
+                          </div>
+                        </div>
+                      ) : m.body ? <p>{m.body}</p> : null}
+                      {m.image_url ? (
+                        <button
+                          type="button"
+                          className="sm-msg-image-btn"
+                          onClick={() => openMessageImageLightbox(m.id)}
+                          aria-label={t("smPhoto")}
+                        >
+                          <img src={m.image_url} alt="" className="sm-msg-image-thumb" />
+                        </button>
+                      ) : null}
                       {m.audio_url ? (
                         <VoiceMessageCard src={m.audio_url} mine={mine} />
+                      ) : null}
+                      {m.pdf_url ? (
+                        <a href={m.pdf_url} target="_blank" rel="noreferrer">
+                          PDF
+                        </a>
+                      ) : null}
+                      {mine ? (
+                        <div className="sm-msg-menu-wrap">
+                          <button type="button" className="sm-msg-menu-btn" onClick={() => setOpenMenuId((p) => (p === m.id ? null : m.id))}>⋯</button>
+                          {openMenuId === m.id ? (
+                            <div className="sm-msg-menu">
+                              <button type="button" onClick={() => { setEditingMessageId(m.id); setEditingBody(m.body || ""); }}>Modify</button>
+                              <button type="button" onClick={() => deleteMessage(m.id)}>Delete</button>
+                            </div>
+                          ) : null}
+                        </div>
                       ) : null}
                     </div>
                   </div>
@@ -490,7 +571,7 @@ export default function StudentMessagesPage() {
                   <button type="button" className="sm-icon-btn" onClick={clearRecordedAudio}>✕</button>
                 </div>
               ) : null}
-              <button type="button" className="sm-icon-btn" onClick={() => fileRef.current?.click()}>🖼</button>
+              <button type="button" className="sm-icon-btn" onClick={() => fileRef.current?.click()}>📎</button>
               <button
                 type="button"
                 className={`sm-icon-btn ${recording ? "is-recording" : ""}`}
@@ -502,11 +583,11 @@ export default function StudentMessagesPage() {
               <input
                 ref={fileRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,.pdf"
                 style={{ display: "none" }}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file) sendMessage({ imageFile: file });
+                  if (file) sendMessage({ file });
                   e.target.value = "";
                 }}
               />
@@ -551,6 +632,19 @@ export default function StudentMessagesPage() {
           </div>
         </div>
       ) : null}
+      <MessageImageLightbox
+        images={messageImageGallery}
+        activeIndex={imageLightboxIndex}
+        onClose={() => setImageLightboxIndex(null)}
+        onChangeIndex={setImageLightboxIndex}
+        labels={{
+          close: t("smImgClose"),
+          prev: t("smImgPrev"),
+          next: t("smImgNext"),
+          download: t("smImgDownload"),
+          dialog: t("smImgViewer"),
+        }}
+      />
     </div>
   );
 }

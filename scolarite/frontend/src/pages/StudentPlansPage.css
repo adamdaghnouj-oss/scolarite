@@ -30,7 +30,10 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  font-weight: 800;
+  font-weight: 900;
+  text-decoration: none;
+  color: #0f172a;
+  letter-spacing: -0.01em;
 }
 
 .spn-brand-mark {
@@ -40,8 +43,18 @@
   display: grid;
   place-items: center;
   color: #1d4ed8;
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.16), rgba(16, 185, 129, 0.12));
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.18), rgba(16, 185, 129, 0.10));
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.spn-brand:hover {
+  color: #0f172a;
+}
+
+.spn-brand > span:last-child {
+  font-size: 16px;
+  line-height: 1;
 }
 
 .spn-links {

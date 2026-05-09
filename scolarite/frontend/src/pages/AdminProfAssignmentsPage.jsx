@@ -10,6 +10,13 @@ function norm(s) {
   return String(s ?? "").trim().toLowerCase();
 }
 
+function classLevelLabel(value, tr) {
+  if (value === "first") return tr("First year", "1ere annee");
+  if (value === "second") return tr("Second year", "2eme annee");
+  if (value === "third_pfe") return tr("Third year (PFE)", "3eme annee (PFE)");
+  return tr("level not set", "niveau non defini");
+}
+
 function collectModuleIds(plan) {
   const ids = [];
   for (const panier of plan?.paniers ?? []) {
@@ -18,6 +25,112 @@ function collectModuleIds(plan) {
     }
   }
   return ids;
+}
+
+/** panierId -> moduleId for building save payload */
+function moduleToPanierIdMap(plan) {
+  const map = new Map();
+  for (const panier of plan?.paniers ?? []) {
+    for (const m of panier.modules ?? []) {
+      map.set(m.id, panier.id);
+    }
+  }
+  return map;
+}
+
+/**
+ * How TP is configured for each panier when loading from API (still stored per module in DB).
+ * - sameAsCours: TP professor = panier course professor (same value written on every module row)
+ * - else tp: one TP professor applied to every module in the panier (when distinct stored values match)
+ */
+function derivePanierTpState(plan, assignments) {
+  const fromApi = {};
+  for (const a of assignments ?? []) {
+    fromApi[a.module_id] = a;
+  }
+  const out = {};
+  for (const panier of plan?.paniers ?? []) {
+    const mods = panier.modules ?? [];
+    if (mods.length === 0) {
+      out[panier.id] = { sameAsCours: false, tp: "", allDepts: false };
+      continue;
+    }
+    const rows = mods.map((m) => {
+      const a = fromApi[m.id] || {};
+      return {
+        c: a.professeur_cours_id ?? null,
+        t: a.professeur_tp_id ?? null,
+      };
+    });
+    const allHaveT = rows.every((r) => r.t != null);
+    const uniqT = [...new Set(rows.map((r) => r.t).filter((x) => x != null))];
+    const singleSharedTp = allHaveT && uniqT.length === 1;
+    const sameAsCours = rows.every(
+      (r) => (r.c == null && r.t == null) || (r.c != null && r.t != null && r.c === r.t)
+    );
+
+    if (singleSharedTp) {
+      out[panier.id] = { sameAsCours: false, tp: String(uniqT[0]), allDepts: false };
+    } else if (sameAsCours) {
+      out[panier.id] = { sameAsCours: true, tp: "", allDepts: false };
+    } else {
+      out[panier.id] = { sameAsCours: false, tp: "", allDepts: false };
+    }
+  }
+  return out;
+}
+
+function distinctStoredTpProfessorIds(panier, assignments) {
+  const fromApi = {};
+  for (const a of assignments ?? []) {
+    fromApi[a.module_id] = a;
+  }
+  const s = new Set();
+  for (const m of panier.modules ?? []) {
+    const t = fromApi[m.id]?.professeur_tp_id;
+    if (t != null) s.add(t);
+  }
+  return s;
+}
+
+function distinctStoredCoursProfessorIds(panier, assignments) {
+  const fromApi = {};
+  for (const a of assignments ?? []) {
+    fromApi[a.module_id] = a;
+  }
+  const s = new Set();
+  for (const m of panier.modules ?? []) {
+    const c = fromApi[m.id]?.professeur_cours_id;
+    if (c != null) s.add(c);
+  }
+  return s;
+}
+
+/** One cours professor per panier for the UI; DB still stores per module. */
+function derivePanierCoursState(plan, assignments) {
+  const fromApi = {};
+  for (const a of assignments ?? []) {
+    fromApi[a.module_id] = a;
+  }
+  const out = {};
+  for (const panier of plan?.paniers ?? []) {
+    const mods = panier.modules ?? [];
+    if (mods.length === 0) {
+      out[panier.id] = { cours: "", allDepts: false };
+      continue;
+    }
+    const coursIds = mods.map((m) => fromApi[m.id]?.professeur_cours_id ?? null);
+    const uniq = [...new Set(coursIds.filter((x) => x != null))];
+    if (uniq.length === 0) {
+      out[panier.id] = { cours: "", allDepts: false };
+    } else if (uniq.length === 1) {
+      out[panier.id] = { cours: String(uniq[0]), allDepts: false };
+    } else {
+      const pick = coursIds.find((x) => x != null);
+      out[panier.id] = { cours: pick != null ? String(pick) : "", allDepts: false };
+    }
+  }
+  return out;
 }
 
 export default function AdminProfAssignmentsPage() {
@@ -37,8 +150,10 @@ export default function AdminProfAssignmentsPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  /** moduleId -> { cours: string id or "", tp: string id or "", sameTp: bool, allDepts: bool } */
-  const [assignMap, setAssignMap] = useState({});
+  /** panierId -> { cours: string id or "", allDepts } — one cours professor for the whole matière (all modules) */
+  const [panierCoursState, setPanierCoursState] = useState({});
+  /** panierId -> { sameAsCours, tp: string id or "", allDepts } — TP applies to whole matière (all modules) */
+  const [panierTpState, setPanierTpState] = useState({});
   const [globalAllDepts, setGlobalAllDepts] = useState(false);
 
   const fetchRefs = useCallback(async () => {
@@ -93,34 +208,17 @@ export default function AdminProfAssignmentsPage() {
     [globalAllDepts, selectedDepartment, profs]
   );
 
-  function initAssignMapFromResponse(plan, assignments) {
-    const byMod = {};
-    const fromApi = {};
-    for (const a of assignments ?? []) {
-      fromApi[a.module_id] = a;
-    }
-    for (const panier of plan?.paniers ?? []) {
-      for (const m of panier.modules ?? []) {
-        const a = fromApi[m.id];
-        const c = a?.professeur_cours_id != null ? String(a.professeur_cours_id) : "";
-        const t = a?.professeur_tp_id != null ? String(a.professeur_tp_id) : "";
-        const sameTp = Boolean(c && (!t || c === t));
-        byMod[m.id] = {
-          cours: c,
-          tp: sameTp ? c : t,
-          sameTp,
-          allDepts: false,
-        };
-      }
-    }
-    setAssignMap(byMod);
+  function initProfStateFromResponse(plan, assignments) {
+    setPanierCoursState(derivePanierCoursState(plan, assignments));
+    setPanierTpState(derivePanierTpState(plan, assignments));
   }
 
   async function loadContext() {
     setLoadError("");
     setLoadOk("");
     setPlanPayload(null);
-    setAssignMap({});
+    setPanierCoursState({});
+    setPanierTpState({});
     if (!selectedClass?.id || !selectedClass?.annee_scolaire) {
       setLoadError(tr("Pick a class that has a school year set.", "Choisissez une classe avec une annee scolaire."));
       return;
@@ -131,7 +229,7 @@ export default function AdminProfAssignmentsPage() {
         params: { class_id: selectedClass.id, annee_scolaire: selectedClass.annee_scolaire },
       });
       setPlanPayload(res.data);
-      initAssignMapFromResponse(res.data.plan, res.data.assignments);
+      initProfStateFromResponse(res.data.plan, res.data.assignments);
       setLoadOk(tr("Plan and modules loaded.", "Plan et modules charges."));
     } catch (e) {
       const msg = e.response?.data?.message;
@@ -144,13 +242,19 @@ export default function AdminProfAssignmentsPage() {
     }
   }
 
-  function setRowField(moduleId, field, value) {
-    setAssignMap((prev) => {
-      const cur = prev[moduleId] || { cours: "", tp: "", sameTp: false, allDepts: false };
+  function setPanierCoursField(panierId, field, value) {
+    setPanierCoursState((prev) => {
+      const cur = prev[panierId] || { cours: "", allDepts: false };
+      return { ...prev, [panierId]: { ...cur, [field]: value } };
+    });
+  }
+
+  function setPanierTpField(panierId, field, value) {
+    setPanierTpState((prev) => {
+      const cur = prev[panierId] || { sameAsCours: false, tp: "", allDepts: false };
       const next = { ...cur, [field]: value };
-      if (field === "cours" && next.sameTp) next.tp = value;
-      if (field === "sameTp" && value) next.tp = next.cours;
-      return { ...prev, [moduleId]: next };
+      if (field === "sameAsCours" && value) next.tp = "";
+      return { ...prev, [panierId]: next };
     });
   }
 
@@ -161,10 +265,13 @@ export default function AdminProfAssignmentsPage() {
     setLoadOk("");
     try {
       const moduleIds = collectModuleIds(planPayload.plan);
+      const modToPanier = moduleToPanierIdMap(planPayload.plan);
       const assignments = moduleIds.map((mid) => {
-        const row = assignMap[mid] || { cours: "", tp: "", sameTp: false };
-        const coursId = row.cours ? Number(row.cours) : null;
-        const tpId = row.sameTp ? coursId : row.tp ? Number(row.tp) : null;
+        const panierId = modToPanier.get(mid);
+        const pcs = panierCoursState[panierId] || { cours: "", allDepts: false };
+        const coursId = pcs.cours ? Number(pcs.cours) : null;
+        const ps = panierTpState[panierId] || { sameAsCours: false, tp: "" };
+        const tpId = ps.sameAsCours ? coursId : ps.tp ? Number(ps.tp) : null;
         return {
           module_id: mid,
           professeur_cours_id: coursId,
@@ -176,6 +283,11 @@ export default function AdminProfAssignmentsPage() {
         annee_scolaire: selectedClass.annee_scolaire,
         assignments,
       });
+      const refreshed = await api.get("/plan-etudes/class-module-assignments", {
+        params: { class_id: selectedClass.id, annee_scolaire: selectedClass.annee_scolaire },
+      });
+      setPlanPayload(refreshed.data);
+      initProfStateFromResponse(refreshed.data.plan, refreshed.data.assignments);
       setLoadOk(tr("Assignments saved.", "Affectations enregistrees."));
     } catch (e) {
       const msg = e.response?.data?.message;
@@ -203,18 +315,19 @@ export default function AdminProfAssignmentsPage() {
           <div className="admin-brand-mark" aria-hidden="true">S</div>
           <div className="admin-brand-text">
             <div className="admin-brand-title">Scolarité</div>
-            <div className="admin-brand-subtitle">{tr("Administration", "Administration")}</div>
+            <div className="admin-brand-subtitle">{tr("Director of Studies", "Directeur des Etudes")}</div>
           </div>
         </div>
 
         <nav className="admin-nav">
           <Link className="admin-nav-item" to="/">{tr("Home", "Accueil")}</Link>
-          <Link className="admin-nav-item" to="/admin">{tr("Management", "Gestion")}</Link>
-          <Link className="admin-nav-item" to="/classes">{tr("Classes", "Classes")}</Link>
-          <Link className="admin-nav-item admin-nav-item--active" to="/admin/prof-assignments">
-            {tr("Prof. — modules", "Profs / modules")}
+          <Link className="admin-nav-item" to="/directeur/classes">{tr("Classes", "Classes")}</Link>
+          <Link className="admin-nav-item" to="/directeur/plans">{tr("Study plans", "Plans d'etude")}</Link>
+          <Link className="admin-nav-item admin-nav-item--active" to="/directeur/prof-assignments">
+            {tr("Profs / subjects (panier)", "Profs / matieres (panier)")}
           </Link>
-          <Link className="admin-nav-item" to="/accounts">{tr("Accounts", "Comptes")}</Link>
+          <Link className="admin-nav-item" to="/directeur/timetable">{tr("Timetable", "Emploi du temps")}</Link>
+          <Link className="admin-nav-item" to="/directeur/exam-calendar">{tr("Exam calendar", "Calendrier des examens")}</Link>
           <Link className="admin-nav-item" to="/change-password">{tr("Change password", "Changer le mot de passe")}</Link>
         </nav>
 
@@ -229,12 +342,12 @@ export default function AdminProfAssignmentsPage() {
         <header className="admin-topbar">
           <div>
             <h1 className="admin-title">
-              {tr("Professors per module (class)", "Professeurs par module (classe)")}
+              {tr("Professors — class & study plan", "Professeurs — classe et plan")}
             </h1>
             <p className="admin-subtitle">
               {tr(
-                "Modules come from the study plan (paniers) linked to the class by the Director of Studies. Assign one professor for cours and optionally a different one for TP.",
-                "Les modules viennent du plan d'etudes (paniers) rattache a la classe par le Directeur des etudes. Affectez un professeur pour le cours et eventuellement un autre pour le TP."
+                "Choose one course (cours) professor and one TP professor per subject (panier). The same assignment is stored on every module row for compatibility with grades and messaging.",
+                "Choisissez un professeur de cours et un professeur de TP par matiere (panier). La meme affectation est enregistree sur chaque ligne module pour compatibilite avec les notes et la messagerie."
               )}
             </p>
           </div>
@@ -254,7 +367,8 @@ export default function AdminProfAssignmentsPage() {
                   setSelectedDepartment(e.target.value);
                   setSelectedClassId("");
                   setPlanPayload(null);
-                  setAssignMap({});
+                  setPanierCoursState({});
+                  setPanierTpState({});
                   setLoadError("");
                   setLoadOk("");
                 }}
@@ -285,7 +399,8 @@ export default function AdminProfAssignmentsPage() {
                 onChange={(e) => {
                   setSelectedClassId(e.target.value);
                   setPlanPayload(null);
-                  setAssignMap({});
+                  setPanierCoursState({});
+                  setPanierTpState({});
                   setLoadError("");
                   setLoadOk("");
                 }}
@@ -297,7 +412,7 @@ export default function AdminProfAssignmentsPage() {
                 </option>
                 {filteredClasses.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name} ({c.annee_scolaire || tr("no year", "sans annee")})
+                    {c.name} ({classLevelLabel(c.niveau, tr)} · {c.annee_scolaire || tr("no year", "sans annee")})
                   </option>
                 ))}
               </select>
@@ -355,128 +470,162 @@ export default function AdminProfAssignmentsPage() {
             </div>
             <div className="apa-hint">
               {tr(
-                "Panier = module group from the Director. Each row is one subject (module) with cours / TP professors.",
-                "Panier = groupe de modules defini par le Directeur. Chaque ligne est une matiere (module) avec profs cours / TP."
+                "Evaluations (DS, exam, TP) are defined once per panier by the Director. Course and TP professors are chosen once per panier here.",
+                "Les evaluations (DS, examen, TP) sont definies une fois par panier par le Directeur. Les professeurs de cours et de TP sont choisis une fois par panier ici."
               )}
             </div>
           </section>
         ) : null}
 
-        {planPayload?.plan?.paniers?.map((panier) => (
-          <section key={panier.id} className="admin-card apa-panier">
-            <h2 className="apa-panier-title">
-              {tr("Panier", "Panier")}: {panier.name}
-            </h2>
-            <div className="apa-table-wrap">
-              <table className="admin-table apa-table">
-                <colgroup>
-                  <col className="apa-col apa-col--module" />
-                  <col className="apa-col apa-col--eval" />
-                  <col className="apa-col apa-col--prof" />
-                  <col className="apa-col apa-col--check" />
-                  <col className="apa-col apa-col--prof" />
-                  <col className="apa-col apa-col--check" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th scope="col">{tr("Module", "Module")}</th>
-                    <th scope="col">{tr("Evaluations", "Evaluations")}</th>
-                    <th scope="col">{tr("Professor (cours)", "Professeur (cours)")}</th>
-                    <th scope="col">{tr("Same for TP", "Meme pour TP")}</th>
-                    <th scope="col">{tr("Professor (TP)", "Professeur (TP)")}</th>
-                    <th scope="col">{tr("All depts (row)", "Tous dept. (ligne)")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(panier.modules ?? []).length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="admin-empty">
-                        {tr("No modules in this panier.", "Aucun module dans ce panier.")}
-                      </td>
-                    </tr>
+        {planPayload?.plan?.paniers?.map((panier) => {
+          const pst = panierTpState[panier.id] || { sameAsCours: false, tp: "", allDepts: false };
+          const pcs = panierCoursState[panier.id] || { cours: "", allDepts: false };
+          const tpOptions = profOptionsForRow(pst.allDepts);
+          const coursOptions = profOptionsForRow(pcs.allDepts);
+          const tpClash = distinctStoredTpProfessorIds(panier, planPayload.assignments).size > 1;
+          const coursClash = distinctStoredCoursProfessorIds(panier, planPayload.assignments).size > 1;
+          return (
+            <section key={panier.id} className="admin-card apa-panier">
+              <h2 className="apa-panier-title">
+                {tr("Panier", "Panier")}: {panier.name}
+              </h2>
+
+              <div className="apa-panier-eval-strip" style={{ marginBottom: "14px" }}>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "#334155", marginBottom: "8px" }}>
+                  {tr("Evaluations (plan)", "Evaluations (plan)")}
+                </div>
+                <div className="apa-ev-tags">
+                  {(panier.evaluations ?? []).length === 0 ? (
+                    <span style={{ color: "#64748b", fontSize: "13px" }}>—</span>
                   ) : (
-                    panier.modules.map((m) => {
-                      const row = assignMap[m.id] || { cours: "", tp: "", sameTp: false, allDepts: false };
-                      const options = profOptionsForRow(row.allDepts);
-                      return (
+                    (panier.evaluations ?? []).map((ev) => (
+                      <span key={ev.id} className="apa-ev-tag">
+                        {ev.type}
+                        {ev.weight != null ? ` (${ev.weight})` : ""}
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="apa-panier-cours-bar">
+                <div className="apa-panier-cours-label">
+                  {tr("Course professor (whole subject / panier)", "Professeur de cours (toute la matiere / panier)")}
+                </div>
+                <div className="apa-panier-cours-controls">
+                  <select
+                    className="apa-select-input apa-panier-cours-select"
+                    value={pcs.cours}
+                    onChange={(e) => setPanierCoursField(panier.id, "cours", e.target.value)}
+                    aria-label={tr("Course professor for panier", "Professeur de cours du panier")}
+                  >
+                    <option value="">{tr("— None —", "— Aucun —")}</option>
+                    {coursOptions.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                        {p.departement ? ` (${p.departement})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="apa-check apa-check--compact apa-check--nowrap">
+                    <input
+                      type="checkbox"
+                      checked={pcs.allDepts}
+                      onChange={(e) => setPanierCoursField(panier.id, "allDepts", e.target.checked)}
+                    />
+                    <span>{tr("All depts (cours list)", "Tous dept. (liste cours)")}</span>
+                  </label>
+                </div>
+                {coursClash ? (
+                  <p className="apa-panier-cours-warn">
+                    {tr(
+                      "Saved data had different course professors on different modules. Pick one professor for the whole subject and save to align all modules.",
+                      "Les donnees enregistrees avaient des professeurs de cours differents selon les modules. Choisissez un seul prof pour toute la matiere et enregistrez pour aligner tous les modules."
+                    )}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="apa-panier-tp-bar">
+                <div className="apa-panier-tp-label">{tr("TP professor (whole panier)", "Professeur TP (tout le panier)")}</div>
+                <div className="apa-panier-tp-controls">
+                  <label className="apa-check apa-check--compact">
+                    <input
+                      type="checkbox"
+                      checked={pst.sameAsCours}
+                      onChange={(e) => setPanierTpField(panier.id, "sameAsCours", e.target.checked)}
+                    />
+                    <span>
+                      {tr(
+                        "Same as course professor (subject panier)",
+                        "Meme que le professeur de cours (matiere / panier)"
+                      )}
+                    </span>
+                  </label>
+                  <select
+                    className="apa-select-input apa-panier-tp-select"
+                    value={pst.tp}
+                    disabled={pst.sameAsCours}
+                    onChange={(e) => setPanierTpField(panier.id, "tp", e.target.value)}
+                    aria-label={tr("TP professor for panier", "Professeur TP du panier")}
+                  >
+                    <option value="">{tr("— None —", "— Aucun —")}</option>
+                    {tpOptions.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                        {p.departement ? ` (${p.departement})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="apa-check apa-check--compact apa-check--nowrap">
+                    <input
+                      type="checkbox"
+                      checked={pst.allDepts}
+                      onChange={(e) => setPanierTpField(panier.id, "allDepts", e.target.checked)}
+                    />
+                    <span>{tr("All depts (TP list)", "Tous dept. (liste TP)")}</span>
+                  </label>
+                </div>
+                {tpClash ? (
+                  <p className="apa-panier-tp-warn">
+                    {tr(
+                      'Saved data lists different TP professors on different modules in this panier. Choose one TP professor for the whole panier or enable "Same as course professor", then save.',
+                      "Les donnees enregistrees indiquent des professeurs TP differents selon les modules. Choisissez un seul prof TP pour tout le panier ou cochez « Meme que le prof de cours », puis enregistrez."
+                    )}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="apa-table-wrap">
+                <table className="admin-table apa-table apa-table--modules-only">
+                  <thead>
+                    <tr>
+                      <th scope="col">{tr("Modules in this subject (plan)", "Modules de cette matiere (plan)")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(panier.modules ?? []).length === 0 ? (
+                      <tr>
+                        <td className="admin-empty">
+                          {tr("No modules in this panier.", "Aucun module dans ce panier.")}
+                        </td>
+                      </tr>
+                    ) : (
+                      panier.modules.map((m) => (
                         <tr key={m.id}>
                           <td className="apa-cell apa-cell--module">
                             <div className="apa-mod-name">{m.name}</div>
                             {m.code ? <div className="apa-mod-code">{m.code}</div> : null}
                           </td>
-                          <td className="apa-cell apa-cell--eval">
-                            <div className="apa-ev-tags">
-                              {(m.evaluations ?? []).map((ev) => (
-                                <span key={ev.id} className="apa-ev-tag">
-                                  {ev.type}
-                                  {ev.weight != null ? ` (${ev.weight})` : ""}
-                                </span>
-                              ))}
-                              {(m.evaluations ?? []).length === 0 ? "—" : null}
-                            </div>
-                          </td>
-                          <td className="apa-cell apa-cell--prof">
-                            <select
-                              className="apa-select-input"
-                              value={row.cours}
-                              onChange={(e) => setRowField(m.id, "cours", e.target.value)}
-                            >
-                              <option value="">{tr("— None —", "— Aucun —")}</option>
-                              {options.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.name}
-                                  {p.departement ? ` (${p.departement})` : ""}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="apa-cell apa-cell--check">
-                            <input
-                              type="checkbox"
-                              className="apa-checkbox"
-                              checked={row.sameTp}
-                              onChange={(e) => setRowField(m.id, "sameTp", e.target.checked)}
-                              aria-label={tr("Same professor for TP", "Meme professeur pour le TP")}
-                            />
-                          </td>
-                          <td className="apa-cell apa-cell--prof">
-                            <select
-                              className="apa-select-input"
-                              value={row.sameTp ? row.cours : row.tp}
-                              disabled={row.sameTp}
-                              onChange={(e) => setRowField(m.id, "tp", e.target.value)}
-                            >
-                              <option value="">{tr("— None —", "— Aucun —")}</option>
-                              {options.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.name}
-                                  {p.departement ? ` (${p.departement})` : ""}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="apa-cell apa-cell--check">
-                            <input
-                              type="checkbox"
-                              className="apa-checkbox"
-                              checked={row.allDepts}
-                              onChange={(e) => setRowField(m.id, "allDepts", e.target.checked)}
-                              title={tr(
-                                "For this module only, list professors from every department.",
-                                "Pour ce module seulement, lister les professeurs de tous les departements."
-                              )}
-                              aria-label={tr("All departments for this row", "Tous les departements pour cette ligne")}
-                            />
-                          </td>
                         </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        ))}
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          );
+        })}
 
         {!planPayload?.plan && !loading && selectedDepartment && selectedClassId ? (
           <p className="apa-muted apa-muted--padded">

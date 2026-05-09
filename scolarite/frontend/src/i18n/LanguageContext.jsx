@@ -7,12 +7,13 @@ const LanguageContext = createContext(null);
 export function LanguageProvider({ children }) {
   const [language, setLanguage] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
-    return saved === "fr" || saved === "en" ? saved : "en";
+    return saved === "fr" || saved === "en" || saved === "ar" ? saved : "en";
   });
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, language);
     document.documentElement.lang = language;
+    document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
   }, [language]);
 
   const value = useMemo(() => {

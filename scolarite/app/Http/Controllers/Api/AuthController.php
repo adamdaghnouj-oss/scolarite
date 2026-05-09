@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Administrateur;
 use App\Models\Classe;
 use App\Models\DirecteurEtudes;
+use App\Models\DirecteurStage;
 use App\Models\Professeur;
 use App\Models\Student;
 use App\Models\User;
@@ -26,7 +27,7 @@ class AuthController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
-            'role' => 'required|in:student,professeur,administrateur,directeur_etudes',
+            'role' => 'required|in:student,professeur,administrateur,directeur_etudes,directeur_stage',
         ];
 
         $role = $request->role;
@@ -52,6 +53,9 @@ class AuthController extends Controller
             $rules['departement'] = 'nullable|string|max:100';
         } elseif ($role === 'directeur_etudes') {
             $rules['matricule'] = 'nullable|string|max:50|unique:directeur_etudes,matricule';
+            $rules['departement'] = 'nullable|string|max:100';
+        } elseif ($role === 'directeur_stage') {
+            $rules['matricule'] = 'nullable|string|max:50|unique:directeurs_stage,matricule';
             $rules['departement'] = 'nullable|string|max:100';
         }
 
@@ -89,6 +93,12 @@ class AuthController extends Controller
                 ]);
             } elseif ($role === 'directeur_etudes') {
                 DirecteurEtudes::create([
+                    'user_id' => $user->id,
+                    'matricule' => $request->matricule,
+                    'departement' => $request->departement,
+                ]);
+            } elseif ($role === 'directeur_stage') {
+                DirecteurStage::create([
                     'user_id' => $user->id,
                     'matricule' => $request->matricule,
                     'departement' => $request->departement,

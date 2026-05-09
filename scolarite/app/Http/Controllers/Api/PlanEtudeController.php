@@ -99,7 +99,7 @@ class PlanEtudeController extends Controller
             'paniers.modules' => function ($q) {
                 $q->orderBy('ordre')->orderBy('id');
             },
-            'paniers.modules.evaluations' => function ($q) {
+            'paniers.evaluations' => function ($q) {
                 $q->orderBy('ordre')->orderBy('id');
             },
         ])->findOrFail($id);
@@ -186,17 +186,35 @@ class PlanEtudeController extends Controller
         return response()->json(['message' => 'Module deleted.']);
     }
 
-    public function addEvaluation(Request $request, int $moduleId)
+    public function addEvaluationToPanier(Request $request, int $panierId)
     {
-        $m = Module::findOrFail($moduleId);
+        $panier = Panier::findOrFail($panierId);
         $data = $request->validate([
-            'type' => 'required|string|max:30', // ds, examen, tp, ...
+            'type' => 'required|string|max:30',
             'weight' => 'nullable|numeric|min:0',
             'ordre' => 'nullable|integer|min:0|max:65535',
         ]);
-        $data['module_id'] = $m->id;
-        $data['ordre'] = $data['ordre'] ?? 0;
-        $e = Evaluation::create($data);
+
+        $typeKey = strtolower(trim($data['type']));
+        $dup = Evaluation::query()
+            ->where('panier_id', $panier->id)
+            ->whereRaw('LOWER(TRIM(type)) = ?', [$typeKey])
+            ->exists();
+
+        if ($dup) {
+            return response()->json([
+                'message' => 'An evaluation of this type already exists for this subject (panier).',
+            ], 422);
+        }
+
+        $e = Evaluation::create([
+            'panier_id' => $panier->id,
+            'module_id' => null,
+            'type' => $data['type'],
+            'weight' => $data['weight'] ?? null,
+            'ordre' => $data['ordre'] ?? 0,
+        ]);
+
         return response()->json($e, 201);
     }
 
@@ -301,7 +319,7 @@ class PlanEtudeController extends Controller
             'paniers.modules' => function ($q) {
                 $q->orderBy('ordre')->orderBy('id');
             },
-            'paniers.modules.evaluations' => function ($q) {
+            'paniers.evaluations' => function ($q) {
                 $q->orderBy('ordre')->orderBy('id');
             },
         ])->findOrFail($affectation->plan_etude_id);

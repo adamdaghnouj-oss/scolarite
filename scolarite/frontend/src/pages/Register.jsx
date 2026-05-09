@@ -25,6 +25,7 @@ const ROLES = [
   { id: "student", label: "Étudiant", icon: "📚" },
   { id: "professeur", label: "Professeur", icon: "🎓" },
   { id: "directeur_etudes", label: "Directeur des Etudes", icon: "🧑‍💼" },
+  { id: "directeur_stage", label: "Directeur des Stage", icon: "🏢" },
   { id: "administrateur", label: "Administrateur", icon: "🛡️" },
 ];
 
@@ -38,6 +39,7 @@ export default function Register() {
     const role = getStoredRole();
     if (role === "administrateur") navigate("/admin", { replace: true });
     else if (role === "directeur_etudes") navigate("/directeur/classes", { replace: true });
+    else if (role === "directeur_stage") navigate("/directeur-stage/internships", { replace: true });
     else if (role === "professeur") navigate("/professeur", { replace: true });
   }, [navigate]);
 
@@ -166,8 +168,14 @@ export default function Register() {
       setSuccess("Email vérifié avec succès !");
       const userRole = res.data.user?.role;
       setTimeout(() => {
-        if (userRole === "administrateur" || userRole === "directeur_etudes") {
-          navigate(userRole === "directeur_etudes" ? "/directeur/classes" : "/admin");
+        if (userRole === "administrateur" || userRole === "directeur_etudes" || userRole === "directeur_stage") {
+          navigate(
+            userRole === "directeur_etudes"
+              ? "/directeur/classes"
+              : userRole === "directeur_stage"
+                ? "/directeur-stage/internships"
+                : "/admin"
+          );
         } else if (userRole === "professeur") {
           navigate("/professeur");
         } else if (userRole === "student") {
@@ -205,6 +213,9 @@ export default function Register() {
         payload.matricule = matricule || null;
         payload.departement = departement || null;
       } else if (role === "directeur_etudes") {
+        payload.matricule = matricule || null;
+        payload.departement = departement || null;
+      } else if (role === "directeur_stage") {
         payload.matricule = matricule || null;
         payload.departement = departement || null;
       } else if (role === "administrateur") {
@@ -401,6 +412,33 @@ export default function Register() {
                 )}
 
                 {role === "directeur_etudes" && (
+                  <>
+                    <label className="auth-label">Matricule (optionnel)</label>
+                    <div className="auth-input-wrap">
+                      <span className="auth-input-icon">🪪</span>
+                      <input
+                        className="auth-input"
+                        type="text"
+                        placeholder="Matricule"
+                        value={matricule}
+                        onChange={(e) => setMatricule(e.target.value)}
+                      />
+                    </div>
+                    <label className="auth-label">Département (optionnel)</label>
+                    <div className="auth-input-wrap">
+                      <span className="auth-input-icon">🏢</span>
+                      <input
+                        className="auth-input"
+                        type="text"
+                        placeholder="Département"
+                        value={departement}
+                        onChange={(e) => setDepartement(e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {role === "directeur_stage" && (
                   <>
                     <label className="auth-label">Matricule (optionnel)</label>
                     <div className="auth-input-wrap">

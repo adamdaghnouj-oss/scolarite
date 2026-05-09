@@ -31,6 +31,12 @@ export default function DirecteurClassesPage() {
 
   const [expandedYears, setExpandedYears] = useState({});
   const [expandedDepts, setExpandedDepts] = useState({});
+  const levelOptions = [
+    { value: "first", label: tr("First year", "1ere annee") },
+    { value: "second", label: tr("Second year", "2eme annee") },
+    { value: "third_pfe", label: tr("Third year (PFE)", "3eme annee (PFE)") },
+  ];
+  const levelLabel = (value) => levelOptions.find((o) => o.value === value)?.label || tr("Not set", "Non defini");
 
   const [studentModal, setStudentModal] = useState(null); // null | 'add' | student object
   const [studentForm, setStudentForm] = useState(EMPTY_STUDENT_FORM);
@@ -164,6 +170,11 @@ export default function DirecteurClassesPage() {
           <Link className="admin-nav-item" to="/">{tr("Home", "Accueil")}</Link>
           <Link className="admin-nav-item admin-nav-item--active" to="/directeur/classes">{tr("Classes", "Classes")}</Link>
           <Link className="admin-nav-item" to="/directeur/plans">{tr("Study plans", "Plans d'etude")}</Link>
+          <Link className="admin-nav-item" to="/directeur/prof-assignments">{tr("Profs / subjects (panier)", "Profs / matieres (panier)")}</Link>
+          <Link className="admin-nav-item" to="/directeur/timetable">{tr("Timetable", "Emploi du temps")}</Link>
+          <Link className="admin-nav-item" to="/directeur/exam-calendar">{tr("Exam calendar", "Calendrier des examens")}</Link>
+          <Link className="admin-nav-item" to="/directeur/prof-timetable">{tr("Prof timetable", "EDT professeurs")}</Link>
+          <Link className="admin-nav-item" to="/directeur/prof-exam-surveillance">{tr("Exam surveillance", "Surveillance examens")}</Link>
           <Link className="admin-nav-item" to="/change-password">{tr("Change password", "Changer le mot de passe")}</Link>
         </nav>
         <div className="admin-sidebar-footer">
@@ -246,7 +257,9 @@ export default function DirecteurClassesPage() {
                           >
                             <div>
                               <div style={{ fontWeight: 600, color: "#0f172a" }}>{cls.name}</div>
-                              <div style={{ fontSize: "0.78rem", color: "#64748b" }}>{cls.students_count ?? 0} students</div>
+                              <div style={{ fontSize: "0.78rem", color: "#64748b" }}>
+                                {levelLabel(cls.niveau)} · {cls.students_count ?? 0} students
+                              </div>
                             </div>
                             <div style={{ fontSize: "0.78rem", color: "#64748b" }}>
                               {toDateInputValue(cls.created_at)}
@@ -269,7 +282,7 @@ export default function DirecteurClassesPage() {
                   <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>{selectedClass.name}</div>
                   <div style={{ fontSize: "0.78rem", color: "#64748b" }}>
                     {selectedClass.annee_scolaire && <span>{selectedClass.annee_scolaire} · </span>}
-                    {selectedClass.departement || "No department"}
+                    {selectedClass.departement || "No department"} · {levelLabel(selectedClass.niveau)}
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: "8px" }}>

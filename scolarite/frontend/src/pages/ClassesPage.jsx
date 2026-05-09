@@ -5,7 +5,7 @@ import { clearAuth } from "../auth/auth";
 import "./AdminPanel.css";
 import { useLanguage } from "../i18n/LanguageContext";
 
-const EMPTY_CLASS_FORM = { name: "", departement: "", annee_scolaire: "" };
+const EMPTY_CLASS_FORM = { name: "", departement: "", annee_scolaire: "", niveau: "" };
 const EMPTY_STUDENT_FORM = { name: "", email: "", password: "", matricule: "" };
 const EMPTY_YEAR_FORM = { annee_scolaire: "" };
 const EMPTY_DEPT_FORM = { departement: "" };
@@ -37,6 +37,10 @@ export default function ClassesPage() {
   const [studentForm, setStudentForm] = useState(EMPTY_STUDENT_FORM);
   const [studentFormError, setStudentFormError] = useState("");
   const [studentFormLoading, setStudentFormLoading] = useState(false);
+  const [attachCandidates, setAttachCandidates] = useState([]);
+  const [attachSearch, setAttachSearch] = useState("");
+  const [attachLoading, setAttachLoading] = useState(false);
+  const [selectedAttachId, setSelectedAttachId] = useState("");
 
   // Delete confirm
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -55,6 +59,13 @@ export default function ClassesPage() {
   // Track which years have departments expanded
   const [expandedDepts, setExpandedDepts] = useState({});
 
+  const levelOptions = [
+    { value: "first", label: tr("First year", "1ere annee") },
+    { value: "second", label: tr("Second year", "2eme annee") },
+    { value: "third_pfe", label: tr("Third year (PFE)", "3eme annee (PFE)") },
+  ];
+  const levelLabel = (value) => levelOptions.find((o) => o.value === value)?.label || tr("Not set", "Non defini");
+
   const fetchClasses = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -69,6 +80,37 @@ export default function ClassesPage() {
   }, []);
 
   useEffect(() => { fetchClasses(); }, [fetchClasses]);
+
+  useEffect(() => {
+    if (studentModal !== "add" || !selectedClass?.id) return undefined;
+    let cancelled = false;
+    const q = attachSearch.trim();
+    const delay = q ? 350 : 0;
+    const t = setTimeout(async () => {
+      setAttachLoading(true);
+      try {
+        const res = await api.get(`/classes/${selectedClass.id}/students/attach-candidates`, {
+          params: q ? { q } : {},
+        });
+        if (!cancelled) setAttachCandidates(res.data || []);
+      } catch {
+        if (!cancelled) {
+          setAttachCandidates([]);
+          setStudentFormError(
+            language === "fr"
+              ? "Échec du chargement des étudiants."
+              : "Failed to load students."
+          );
+        }
+      } finally {
+        if (!cancelled) setAttachLoading(false);
+      }
+    }, delay);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [studentModal, selectedClass?.id, attachSearch, language]);
 
   const fetchStudents = useCallback(async (classId) => {
     setStudentsLoading(true);
@@ -156,7 +198,7 @@ export default function ClassesPage() {
   }
 
   function openEditClass(cls) {
-    setClassForm({ name: cls.name, departement: cls.departement || "", annee_scolaire: cls.annee_scolaire || "" });
+    setClassForm({ name: cls.name, departement: cls.departement || "", annee_scolaire: cls.annee_scolaire || "", niveau: cls.niveau || "" });
     setClassFormError("");
     setClassModal(cls);
   }
@@ -198,10 +240,21 @@ export default function ClassesPage() {
     setDeleteConfirm(null);
   }
 
+  function closeStudentModal() {
+    setStudentModal(null);
+    setAttachCandidates([]);
+    setAttachSearch("");
+    setSelectedAttachId("");
+    setStudentFormError("");
+  }
+
   // --- Student CRUD ---
   function openAddStudent() {
     setStudentForm(EMPTY_STUDENT_FORM);
     setStudentFormError("");
+    setAttachSearch("");
+    setSelectedAttachId("");
+    setAttachCandidates([]);
     setStudentModal("add");
   }
 
@@ -211,21 +264,59 @@ export default function ClassesPage() {
     setStudentModal(s);
   }
 
-  async function handleStudentSubmit(e) {
+  async function handleAttachStudentSubmit(e) {
     e.preventDefault();
+    if (!selectedAttachId) {
+      setStudentFormError(
+        language === "fr" ? "Veuillez sélectionner un étudiant." : "Please select a student."
+      );
+      return;
+    }
     setStudentFormError("");
     setStudentFormLoading(true);
     try {
-      if (studentModal === "add") {
-        const res = await api.post(`/classes/${selectedClass.id}/students`, studentForm);
-        setStudents((prev) => [...prev, res.data]);
-        setClasses((prev) => prev.map((c) => c.id === selectedClass.id ? { ...c, students_count: (c.students_count || 0) + 1 } : c));
-      } else {
-        const payload = { name: studentForm.name, email: studentForm.email, matricule: studentForm.matricule };
-        const res = await api.put(`/classes/${selectedClass.id}/students/${studentModal.id}`, payload);
-        setStudents((prev) => prev.map((s) => s.id === studentModal.id ? res.data : s));
-      }
-      setStudentModal(null);
+      const res = await api.post(`/classes/${selectedClass.id}/students/attach`, {
+        student_id: Number(selectedAttachId),
+      });
+      const movedFromId = attachCandidates.find((x) => String(x.id) === String(selectedAttachId))?.current_class_id;
+      setStudents((prev) => [...prev, res.data]);
+      setClasses((prev) =>
+        prev.map((c) => {
+          if (c.id === selectedClass.id) {
+            return { ...c, students_count: (c.students_count || 0) + 1 };
+          }
+          if (movedFromId && c.id === movedFromId) {
+            return { ...c, students_count: Math.max(0, (c.students_count || 1) - 1) };
+          }
+          return c;
+        })
+      );
+      closeStudentModal();
+    } catch (err) {
+      const d = err.response?.data;
+      setStudentFormError(
+        d?.message ||
+          (d?.errors
+            ? Object.values(d.errors).flat().join(" ")
+            : language === "fr"
+              ? "Impossible d'ajouter l'étudiant à la classe."
+              : "Could not add student to class.")
+      );
+    } finally {
+      setStudentFormLoading(false);
+    }
+  }
+
+  async function handleStudentSubmit(e) {
+    e.preventDefault();
+    if (studentModal === "add") return;
+    setStudentFormError("");
+    setStudentFormLoading(true);
+    try {
+      const payload = { name: studentForm.name, email: studentForm.email, matricule: studentForm.matricule };
+      const res = await api.put(`/classes/${selectedClass.id}/students/${studentModal.id}`, payload);
+      setStudents((prev) => prev.map((s) => (s.id === studentModal.id ? res.data : s)));
+      closeStudentModal();
     } catch (err) {
       const d = err.response?.data;
       setStudentFormError(d?.message || (d?.errors ? Object.values(d.errors).flat().join(" ") : "Error saving student."));
@@ -282,8 +373,10 @@ export default function ClassesPage() {
           <Link className="admin-nav-item" to="/">{tr("Home", "Accueil")}</Link>
           <Link className="admin-nav-item" to="/admin">{tr("User management", "Gestion des utilisateurs")}</Link>
           <Link className="admin-nav-item admin-nav-item--active" to="/classes">{tr("Classes", "Classes")}</Link>
-          <Link className="admin-nav-item" to="/admin/prof-assignments">{tr("Prof. — modules", "Profs / modules")}</Link>
           <Link className="admin-nav-item" to="/accounts">{tr("Accounts", "Comptes")}</Link>
+          <Link className="admin-nav-item" to="/admin/student-contacts">{tr("Student contacts", "Contacts etudiants")}</Link>
+          <Link className="admin-nav-item" to="/admin/grades">{tr("Grades control", "Controle des notes")}</Link>
+          <Link className="admin-nav-item" to="/admin/attendance-certificates">{tr("Attendance certificates", "Attestations de presence")}</Link>
           <Link className="admin-nav-item" to="/change-password">{tr("Change password", "Changer le mot de passe")}</Link>
         </nav>
         <div className="admin-sidebar-footer">
@@ -384,7 +477,9 @@ export default function ClassesPage() {
                           >
                             <div>
                               <div style={{ fontWeight: 600, color: "#0f172a" }}>{cls.name}</div>
-                              <div style={{ fontSize: "0.78rem", color: "#64748b" }}>{cls.students_count ?? 0} students</div>
+                              <div style={{ fontSize: "0.78rem", color: "#64748b" }}>
+                                {levelLabel(cls.niveau)} · {cls.students_count ?? 0} students
+                              </div>
                             </div>
                             <div style={{ display: "flex", gap: "6px" }} onClick={(e) => e.stopPropagation()}>
                               <button type="button" className="admin-icon-btn" onClick={() => openEditClass(cls)} title="Edit">✎</button>
@@ -408,11 +503,13 @@ export default function ClassesPage() {
                   <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>{selectedClass.name}</div>
                   <div style={{ fontSize: "0.78rem", color: "#64748b" }}>
                     {selectedClass.annee_scolaire && <span>{selectedClass.annee_scolaire} · </span>}
-                    {selectedClass.departement || "No department"}
+                    {selectedClass.departement || "No department"} · {levelLabel(selectedClass.niveau)}
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: "8px" }}>
-                  <button type="button" className="admin-primary-btn" style={{ padding: "7px 12px", fontSize: "0.82rem" }} onClick={openAddStudent}>+ Add Student</button>
+                  <button type="button" className="admin-primary-btn" style={{ padding: "7px 12px", fontSize: "0.82rem" }} onClick={openAddStudent}>
+                    + {tr("Add student", "Ajouter un étudiant")}
+                  </button>
                   <button type="button" className="admin-icon-btn" onClick={() => setSelectedClass(null)} title="Close">✕</button>
                 </div>
               </div>
@@ -515,6 +612,13 @@ export default function ClassesPage() {
               <input className="admin-input" value={classForm.departement} onChange={(e) => setClassForm({ ...classForm, departement: e.target.value })} required placeholder="e.g. Computer Science" style={classForm.departement ? { background: "#f1f5f9" } : {}} disabled={!!classForm.departement} />
               <label className="admin-label">Class Name *</label>
               <input className="admin-input" value={classForm.name} onChange={(e) => setClassForm({ ...classForm, name: e.target.value })} required placeholder="e.g. L2 Informatique" />
+              <label className="admin-label">Class Level *</label>
+              <select className="admin-input" value={classForm.niveau} onChange={(e) => setClassForm({ ...classForm, niveau: e.target.value })} required>
+                <option value="">Select level...</option>
+                {levelOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
               <div className="admin-modal-actions">
                 <button type="button" className="admin-secondary-btn" onClick={() => setClassModal(null)}>Cancel</button>
                 <button type="submit" className="admin-primary-btn" disabled={classFormLoading}>{classFormLoading ? "Saving..." : "Save"}</button>
@@ -526,31 +630,88 @@ export default function ClassesPage() {
 
       {/* Student modal */}
       {studentModal !== null && (
-        <div className="admin-modal-overlay" onClick={() => setStudentModal(null)}>
+        <div className="admin-modal-overlay" onClick={closeStudentModal}>
           <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
             <div className="admin-modal-header">
-              <h2 className="admin-modal-title">{studentModal === "add" ? "Add Student" : "Edit Student"}</h2>
-              <button type="button" className="admin-modal-close" onClick={() => setStudentModal(null)}>✕</button>
+              <h2 className="admin-modal-title">
+                {studentModal === "add"
+                  ? tr("Add student to class", "Ajouter un étudiant à la classe")
+                  : tr("Edit Student", "Modifier l'étudiant")}
+              </h2>
+              <button type="button" className="admin-modal-close" onClick={closeStudentModal}>✕</button>
             </div>
-            <form className="admin-modal-form" onSubmit={handleStudentSubmit}>
-              {studentFormError && <p className="auth-error">{studentFormError}</p>}
-              <label className="admin-label">Name *</label>
-              <input className="admin-input" value={studentForm.name} onChange={(e) => setStudentForm({ ...studentForm, name: e.target.value })} required placeholder="Full name" />
-              <label className="admin-label">Email *</label>
-              <input className="admin-input" type="email" value={studentForm.email} onChange={(e) => setStudentForm({ ...studentForm, email: e.target.value })} required placeholder="email@example.com" />
-              {studentModal === "add" && (
-                <>
-                  <label className="admin-label">Password *</label>
-                  <input className="admin-input" type="password" value={studentForm.password} onChange={(e) => setStudentForm({ ...studentForm, password: e.target.value })} required placeholder="Min 8 characters" />
-                </>
-              )}
-              <label className="admin-label">Matricule *</label>
-              <input className="admin-input" value={studentForm.matricule} onChange={(e) => setStudentForm({ ...studentForm, matricule: e.target.value })} required placeholder="2025-0001" />
-              <div className="admin-modal-actions">
-                <button type="button" className="admin-secondary-btn" onClick={() => setStudentModal(null)}>Cancel</button>
-                <button type="submit" className="admin-primary-btn" disabled={studentFormLoading}>{studentFormLoading ? "Saving..." : "Save"}</button>
-              </div>
-            </form>
+            {studentModal === "add" ? (
+              <form className="admin-modal-form" onSubmit={handleAttachStudentSubmit}>
+                {studentFormError && <p className="auth-error">{studentFormError}</p>}
+                <p style={{ color: "#64748b", fontSize: "0.9rem", marginTop: 0 }}>
+                  {tr(
+                    "Choose an existing student account (for example one who registered). Students already in this class are not listed.",
+                    "Choisissez un compte étudiant existant (par ex. déjà inscrit). Les étudiants déjà dans cette classe ne sont pas listés."
+                  )}
+                </p>
+                <label className="admin-label">{tr("Search", "Rechercher")}</label>
+                <input
+                  className="admin-input"
+                  value={attachSearch}
+                  onChange={(e) => setAttachSearch(e.target.value)}
+                  placeholder={tr("Name, email, or matricule…", "Nom, e-mail ou matricule…")}
+                />
+                <label className="admin-label">{tr("Student", "Étudiant")} *</label>
+                {attachLoading ? (
+                  <p style={{ color: "#64748b" }}>{tr("Loading…", "Chargement…")}</p>
+                ) : (
+                  <select
+                    className="admin-input"
+                    value={selectedAttachId}
+                    onChange={(e) => setSelectedAttachId(e.target.value)}
+                    required
+                    size={Math.min(12, Math.max(4, attachCandidates.length + 1))}
+                    style={{ height: "auto", minHeight: 120 }}
+                  >
+                    <option value="">{tr("Select a student…", "Sélectionner un étudiant…")}</option>
+                    {attachCandidates.map((c) => (
+                      <option key={c.id} value={String(c.id)}>
+                        {c.name} — {c.matricule} ({c.email})
+                        {c.current_class_name
+                          ? ` · ${tr("Currently:", "Actuellement :")} ${c.current_class_name}`
+                          : ` · ${tr("No class", "Sans classe")}`}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {!attachLoading && attachCandidates.length === 0 && (
+                  <p style={{ color: "#64748b", fontSize: "0.88rem" }}>
+                    {tr("No students available to add.", "Aucun étudiant disponible à ajouter.")}
+                  </p>
+                )}
+                <div className="admin-modal-actions">
+                  <button type="button" className="admin-secondary-btn" onClick={closeStudentModal}>
+                    {tr("Cancel", "Annuler")}
+                  </button>
+                  <button type="submit" className="admin-primary-btn" disabled={studentFormLoading || attachLoading}>
+                    {studentFormLoading ? tr("Adding…", "Ajout…") : tr("Add to class", "Ajouter à la classe")}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form className="admin-modal-form" onSubmit={handleStudentSubmit}>
+                {studentFormError && <p className="auth-error">{studentFormError}</p>}
+                <label className="admin-label">Name *</label>
+                <input className="admin-input" value={studentForm.name} onChange={(e) => setStudentForm({ ...studentForm, name: e.target.value })} required placeholder="Full name" />
+                <label className="admin-label">Email *</label>
+                <input className="admin-input" type="email" value={studentForm.email} onChange={(e) => setStudentForm({ ...studentForm, email: e.target.value })} required placeholder="email@example.com" />
+                <label className="admin-label">Matricule *</label>
+                <input className="admin-input" value={studentForm.matricule} onChange={(e) => setStudentForm({ ...studentForm, matricule: e.target.value })} required placeholder="2025-0001" />
+                <div className="admin-modal-actions">
+                  <button type="button" className="admin-secondary-btn" onClick={closeStudentModal}>
+                    {tr("Cancel", "Annuler")}
+                  </button>
+                  <button type="submit" className="admin-primary-btn" disabled={studentFormLoading}>
+                    {studentFormLoading ? tr("Saving…", "Enregistrement…") : tr("Save", "Enregistrer")}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

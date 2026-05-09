@@ -16,6 +16,13 @@ function normalize(s) {
   return String(s ?? "").trim().toLowerCase();
 }
 
+function classLevelLabel(value) {
+  if (value === "first") return "1ere annee";
+  if (value === "second") return "2eme annee";
+  if (value === "third_pfe") return "3eme annee (PFE)";
+  return "Niveau non defini";
+}
+
 export default function DirecteurPlansPage() {
   const navigate = useNavigate();
   const { language } = useLanguage();
@@ -270,7 +277,7 @@ export default function DirecteurPlansPage() {
     setFormError("");
     try {
       const weightVal = evalForm.weight === "" ? null : Number(evalForm.weight);
-      await api.post(`/plan-etudes/modules/${context.moduleId}/evaluations`, {
+      await api.post(`/plan-etudes/paniers/${context.panierId}/evaluations`, {
         type: evalForm.type,
         weight: weightVal,
         ordre: Number(evalForm.ordre || 0),
@@ -327,14 +334,14 @@ export default function DirecteurPlansPage() {
       await api.delete(`/plan-etudes/affectations/${a.id}`);
     }
 
-    // Remove plan tree (evaluations -> modules -> paniers).
+    // Remove plan tree (evaluations on panier -> modules -> paniers).
     const planRes = await api.get(`/plan-etudes/plans/${planId}`);
     const paniers = planRes.data?.paniers || [];
     for (const panier of paniers) {
+      for (const ev of panier.evaluations || []) {
+        await api.delete(`/plan-etudes/evaluations/${ev.id}`);
+      }
       for (const mod of panier.modules || []) {
-        for (const ev of mod.evaluations || []) {
-          await api.delete(`/plan-etudes/evaluations/${ev.id}`);
-        }
         await api.delete(`/plan-etudes/modules/${mod.id}`);
       }
       await api.delete(`/plan-etudes/paniers/${panier.id}`);
@@ -344,7 +351,7 @@ export default function DirecteurPlansPage() {
     await api.put(`/plan-etudes/plans/${planId}`, { is_active: false });
   }
 
-  const classLabel = (c) => `${c.annee_scolaire || "—"} • ${c.departement || "—"} • ${c.name}`;
+  const classLabel = (c) => `${c.annee_scolaire || "—"} • ${c.departement || "—"} • ${c.name} • ${classLevelLabel(c.niveau)}`;
 
   async function handleLogout() {
     try {
@@ -371,6 +378,11 @@ export default function DirecteurPlansPage() {
           <Link className="admin-nav-item" to="/">{tr("Home", "Accueil")}</Link>
           <Link className="admin-nav-item" to="/directeur/classes">{tr("Classes", "Classes")}</Link>
           <Link className="admin-nav-item admin-nav-item--active" to="/directeur/plans">{tr("Study plans", "Plans d'etude")}</Link>
+          <Link className="admin-nav-item" to="/directeur/prof-assignments">{tr("Profs / subjects (panier)", "Profs / matieres (panier)")}</Link>
+          <Link className="admin-nav-item" to="/directeur/timetable">{tr("Timetable", "Emploi du temps")}</Link>
+          <Link className="admin-nav-item" to="/directeur/exam-calendar">{tr("Exam calendar", "Calendrier des examens")}</Link>
+          <Link className="admin-nav-item" to="/directeur/prof-timetable">{tr("Prof timetable", "EDT professeurs")}</Link>
+          <Link className="admin-nav-item" to="/directeur/prof-exam-surveillance">{tr("Exam surveillance", "Surveillance examens")}</Link>
           <Link className="admin-nav-item" to="/change-password">{tr("Change password", "Changer le mot de passe")}</Link>
         </nav>
         <div className="admin-sidebar-footer">
@@ -386,8 +398,8 @@ export default function DirecteurPlansPage() {
             <h1 className="admin-title">{tr("Study plans", "Plans d'etude")}</h1>
             <p className="admin-subtitle">
               {tr(
-                "Each department contains specialties. Each specialty has one unique study plan. Each study plan contains groups (paniers). Each group contains modules (with conditions). Each module contains evaluations (DS, exams, TP, tests), and every evaluation has a percentage.",
-                "Chaque departement contient des specialites. Chaque specialite a un plan d'etude unique. Chaque plan d'etude contient des paniers. Chaque panier contient des modules (avec conditions). Chaque module contient des evaluations (DS, examens, TP, tests), et chaque evaluation a un pourcentage."
+                "Each plan has paniers (subject groups). Evaluations (DS, exam, TP) are defined once per panier. Modules under a panier carry coefficients and structure.",
+                "Chaque plan a des paniers (groupes de matieres). Les evaluations (DS, examen, TP) sont definies une fois par panier. Les modules portent les coefficients et la structure."
               )}
             </p>
           </div>
@@ -575,7 +587,7 @@ export default function DirecteurPlansPage() {
 
             <div style={{ padding: 14 }}>
               {!selectedPlan ? (
-                <p style={{ color: "#64748b" }}>Choisissez un plan à gauche pour gérer paniers / modules / évaluations.</p>
+                <p style={{ color: "#64748b" }}>Choisissez un plan à gauche pour gérer paniers, évaluations (par matière) et modules.</p>
               ) : treeLoading ? (
                 <p style={{ color: "#64748b" }}>Loading...</p>
               ) : !planTree ? (
@@ -613,6 +625,66 @@ export default function DirecteurPlansPage() {
                           </div>
                         </div>
                         <div style={{ padding: 12 }}>
+                          <div
+                            style={{
+                              marginBottom: 12,
+                              padding: "10px 12px",
+                              border: "1px solid #e2e8f0",
+                              borderRadius: 10,
+                              background: "#fff",
+                            }}
+                          >
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                              <div style={{ fontWeight: 700, fontSize: 13, color: "#334155" }}>Évaluations (matière entière)</div>
+                              <button
+                                type="button"
+                                className="admin-secondary-btn"
+                                style={{ padding: "6px 10px" }}
+                                onClick={() => {
+                                  setEvalForm(EMPTY_EVAL);
+                                  setContext({ planId: planTree.id, panierId: panier.id, moduleId: null });
+                                  openModal("eval");
+                                }}
+                              >
+                                + Évaluation
+                              </button>
+                            </div>
+                            <div style={{ marginTop: 10 }}>
+                              {(panier.evaluations ?? []).length === 0 ? (
+                                <div style={{ color: "#64748b", fontSize: 12 }}>Aucune évaluation.</div>
+                              ) : (
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                                  {(panier.evaluations ?? []).map((ev) => (
+                                    <div
+                                      key={ev.id}
+                                      style={{
+                                        display: "flex",
+                                        gap: 8,
+                                        alignItems: "center",
+                                        border: "1px solid #e2e8f0",
+                                        borderRadius: 999,
+                                        padding: "6px 10px",
+                                        fontSize: 12,
+                                      }}
+                                    >
+                                      <strong>{ev.type}</strong>
+                                      {ev.weight !== null && ev.weight !== undefined ? (
+                                        <span style={{ color: "#64748b" }}>({ev.weight})</span>
+                                      ) : null}
+                                      <button
+                                        type="button"
+                                        style={{ border: 0, background: "transparent", color: "#ef4444", cursor: "pointer" }}
+                                        onClick={() => quickDelete(`/plan-etudes/evaluations/${ev.id}`, () => loadPlanTree(planTree.id))}
+                                        aria-label="Delete evaluation"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
                           {(panier.modules ?? []).length === 0 ? (
                             <div style={{ color: "#64748b" }}>No modules.</div>
                           ) : (
@@ -632,46 +704,12 @@ export default function DirecteurPlansPage() {
                                       <button
                                         type="button"
                                         className="admin-secondary-btn"
-                                        style={{ padding: "6px 10px" }}
-                                        onClick={() => {
-                                          setEvalForm(EMPTY_EVAL);
-                                          setContext({ planId: planTree.id, panierId: panier.id, moduleId: m.id });
-                                          openModal("eval");
-                                        }}
-                                      >
-                                        + Évaluation
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="admin-secondary-btn"
                                         style={{ padding: "6px 10px", borderColor: "#ef4444", color: "#ef4444" }}
                                         onClick={() => quickDelete(`/plan-etudes/modules/${m.id}`, () => loadPlanTree(planTree.id))}
                                       >
                                         Delete
                                       </button>
                                     </div>
-                                  </div>
-                                  <div style={{ marginTop: 10 }}>
-                                    {(m.evaluations ?? []).length === 0 ? (
-                                      <div style={{ color: "#64748b", fontSize: 12 }}>No evaluations.</div>
-                                    ) : (
-                                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                                        {m.evaluations.map((ev) => (
-                                          <div key={ev.id} style={{ display: "flex", gap: 8, alignItems: "center", border: "1px solid #e2e8f0", borderRadius: 999, padding: "6px 10px", fontSize: 12 }}>
-                                            <strong>{ev.type}</strong>
-                                            {ev.weight !== null && ev.weight !== undefined ? <span style={{ color: "#64748b" }}>({ev.weight})</span> : null}
-                                            <button
-                                              type="button"
-                                              style={{ border: 0, background: "transparent", color: "#ef4444", cursor: "pointer" }}
-                                              onClick={() => quickDelete(`/plan-etudes/evaluations/${ev.id}`, () => loadPlanTree(planTree.id))}
-                                              aria-label="Delete evaluation"
-                                            >
-                                              ✕
-                                            </button>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
                                   </div>
                                 </div>
                               ))}
@@ -804,7 +842,7 @@ export default function DirecteurPlansPage() {
                             }));
                           }}
                         />
-                        <span>{c.departement || "—"} • {c.name}</span>
+                        <span>{c.departement || "—"} • {c.name} • {classLevelLabel(c.niveau)}</span>
                       </label>
                     ))}
                 </div>

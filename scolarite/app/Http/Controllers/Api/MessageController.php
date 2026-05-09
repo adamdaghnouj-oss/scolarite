@@ -101,6 +101,7 @@ class MessageController extends Controller
                     'body' => $last->body,
                     'image_url' => $this->publicStorageUrl($request, $last->image_path),
                     'audio_url' => $this->publicStorageUrl($request, $last->audio_path),
+                    'pdf_url' => $this->publicStorageUrl($request, $last->pdf_path),
                     'sender_student_id' => $last->sender_student_id,
                     'created_at' => optional($last->created_at)->toISOString(),
                 ] : null,
@@ -143,6 +144,7 @@ class MessageController extends Controller
                 'body' => $m->body,
                 'image_url' => $this->publicStorageUrl($request, $m->image_path),
                 'audio_url' => $this->publicStorageUrl($request, $m->audio_path),
+                'pdf_url' => $this->publicStorageUrl($request, $m->pdf_path),
                 'created_at' => optional($m->created_at)->toISOString(),
             ];
         })->values();
@@ -177,18 +179,23 @@ class MessageController extends Controller
             'body' => 'nullable|string|max:4000',
             'image' => 'nullable|file|mimes:jpg,jpeg,png,gif,webp|max:10240',
             'audio' => 'nullable|file|mimes:mp3,wav,ogg,webm,m4a,aac|max:15360',
+            'pdf' => 'nullable|file|mimes:pdf|max:15360',
         ]);
 
         $body = trim((string) $request->input('body', ''));
         $imagePath = null;
         $audioPath = null;
+        $pdfPath = null;
         if ($request->hasFile('image')) {
             $imagePath = $request->file('image')->store("student_docs/{$me->id}/messages", 'public');
         }
         if ($request->hasFile('audio')) {
             $audioPath = $request->file('audio')->store("student_docs/{$me->id}/messages", 'public');
         }
-        if ($body === '' && !$imagePath && !$audioPath) {
+        if ($request->hasFile('pdf')) {
+            $pdfPath = $request->file('pdf')->store("student_docs/{$me->id}/messages", 'public');
+        }
+        if ($body === '' && !$imagePath && !$audioPath && !$pdfPath) {
             return response()->json(['message' => 'Message is empty.'], 422);
         }
 
@@ -198,6 +205,7 @@ class MessageController extends Controller
             'body' => $body !== '' ? $body : null,
             'image_path' => $imagePath,
             'audio_path' => $audioPath,
+            'pdf_path' => $pdfPath,
         ]);
 
         return response()->json([
@@ -207,6 +215,7 @@ class MessageController extends Controller
             'body' => $msg->body,
             'image_url' => $this->publicStorageUrl($request, $msg->image_path),
             'audio_url' => $this->publicStorageUrl($request, $msg->audio_path),
+            'pdf_url' => $this->publicStorageUrl($request, $msg->pdf_path),
             'created_at' => optional($msg->created_at)->toISOString(),
         ], 201);
     }
@@ -249,6 +258,7 @@ class MessageController extends Controller
                     'body' => $last->body,
                     'image_url' => $this->publicStorageUrl($request, $last->image_path),
                     'audio_url' => $this->publicStorageUrl($request, $last->audio_path),
+                    'pdf_url' => $this->publicStorageUrl($request, $last->pdf_path),
                     'sender_student_id' => $last->sender_student_id,
                     'created_at' => optional($last->created_at)->toISOString(),
                 ] : null,
@@ -307,6 +317,7 @@ class MessageController extends Controller
                     'body' => $m->body,
                     'image_url' => $this->publicStorageUrl($request, $m->image_path),
                     'audio_url' => $this->publicStorageUrl($request, $m->audio_path),
+                    'pdf_url' => $this->publicStorageUrl($request, $m->pdf_path),
                     'created_at' => optional($m->created_at)->toISOString(),
                 ];
             })
@@ -342,11 +353,13 @@ class MessageController extends Controller
             'body' => 'nullable|string|max:4000',
             'image' => 'nullable|file|mimes:jpg,jpeg,png,gif,webp|max:10240',
             'audio' => 'nullable|file|mimes:mp3,wav,ogg,webm,m4a,aac|max:15360',
+            'pdf' => 'nullable|file|mimes:pdf|max:15360',
         ]);
 
         $body = trim((string) $request->input('body', ''));
         $imagePath = null;
         $audioPath = null;
+        $pdfPath = null;
 
         if ($request->hasFile('image')) {
             $imagePath = $request->file('image')->store("student_docs/{$me->id}/messages/class", 'public');
@@ -354,7 +367,10 @@ class MessageController extends Controller
         if ($request->hasFile('audio')) {
             $audioPath = $request->file('audio')->store("student_docs/{$me->id}/messages/class", 'public');
         }
-        if ($body === '' && !$imagePath && !$audioPath) {
+        if ($request->hasFile('pdf')) {
+            $pdfPath = $request->file('pdf')->store("student_docs/{$me->id}/messages/class", 'public');
+        }
+        if ($body === '' && !$imagePath && !$audioPath && !$pdfPath) {
             return response()->json(['message' => 'Message is empty.'], 422);
         }
 
@@ -364,6 +380,7 @@ class MessageController extends Controller
             'body' => $body !== '' ? $body : null,
             'image_path' => $imagePath,
             'audio_path' => $audioPath,
+            'pdf_path' => $pdfPath,
         ]);
 
         ClassMessageRead::updateOrCreate(
@@ -379,8 +396,96 @@ class MessageController extends Controller
             'body' => $msg->body,
             'image_url' => $this->publicStorageUrl($request, $msg->image_path),
             'audio_url' => $this->publicStorageUrl($request, $msg->audio_path),
+            'pdf_url' => $this->publicStorageUrl($request, $msg->pdf_path),
             'created_at' => optional($msg->created_at)->toISOString(),
         ], 201);
+    }
+
+    public function updateFriendMessage(Request $request, int $id)
+    {
+        $me = $this->me($request);
+        if (!$me) {
+            return response()->json(['message' => 'Student not found.'], 404);
+        }
+
+        $msg = FriendMessage::findOrFail($id);
+        if ((int) $msg->sender_student_id !== (int) $me->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        $data = $request->validate([
+            'body' => 'required|string|max:4000',
+        ]);
+        $msg->update(['body' => trim((string) $data['body'])]);
+
+        return response()->json([
+            'id' => $msg->id,
+            'sender_student_id' => $msg->sender_student_id,
+            'receiver_student_id' => $msg->receiver_student_id,
+            'body' => $msg->body,
+            'image_url' => $this->publicStorageUrl($request, $msg->image_path),
+            'audio_url' => $this->publicStorageUrl($request, $msg->audio_path),
+            'pdf_url' => $this->publicStorageUrl($request, $msg->pdf_path),
+            'created_at' => optional($msg->created_at)->toISOString(),
+        ]);
+    }
+
+    public function destroyFriendMessage(Request $request, int $id)
+    {
+        $me = $this->me($request);
+        if (!$me) {
+            return response()->json(['message' => 'Student not found.'], 404);
+        }
+
+        $msg = FriendMessage::findOrFail($id);
+        if ((int) $msg->sender_student_id !== (int) $me->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+        $msg->delete();
+        return response()->json(['message' => 'Deleted.']);
+    }
+
+    public function updateClassMessage(Request $request, int $id)
+    {
+        $me = $this->me($request);
+        if (!$me) {
+            return response()->json(['message' => 'Student not found.'], 404);
+        }
+
+        $msg = ClassMessage::findOrFail($id);
+        if ((int) $msg->sender_student_id !== (int) $me->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        $data = $request->validate([
+            'body' => 'required|string|max:4000',
+        ]);
+        $msg->update(['body' => trim((string) $data['body'])]);
+
+        return response()->json([
+            'id' => $msg->id,
+            'sender_student_id' => $msg->sender_student_id,
+            'body' => $msg->body,
+            'image_url' => $this->publicStorageUrl($request, $msg->image_path),
+            'audio_url' => $this->publicStorageUrl($request, $msg->audio_path),
+            'pdf_url' => $this->publicStorageUrl($request, $msg->pdf_path),
+            'created_at' => optional($msg->created_at)->toISOString(),
+        ]);
+    }
+
+    public function destroyClassMessage(Request $request, int $id)
+    {
+        $me = $this->me($request);
+        if (!$me) {
+            return response()->json(['message' => 'Student not found.'], 404);
+        }
+
+        $msg = ClassMessage::findOrFail($id);
+        if ((int) $msg->sender_student_id !== (int) $me->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+        $msg->delete();
+        return response()->json(['message' => 'Deleted.']);
     }
 
     public function classMembers(Request $request)

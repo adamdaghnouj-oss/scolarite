@@ -169,6 +169,7 @@ class PanierMessageController extends Controller
                     'body' => $last->body,
                     'image_url' => $this->publicStorageUrl($request, $last->image_path),
                     'audio_url' => $this->publicStorageUrl($request, $last->audio_path),
+                    'pdf_url' => $this->publicStorageUrl($request, $last->pdf_path),
                     'sender_user_id' => $last->sender_user_id,
                     'created_at' => optional($last->created_at)->toISOString(),
                 ] : null,
@@ -230,6 +231,7 @@ class PanierMessageController extends Controller
                     'body' => $m->body,
                     'image_url' => $this->publicStorageUrl($request, $m->image_path),
                     'audio_url' => $this->publicStorageUrl($request, $m->audio_path),
+                    'pdf_url' => $this->publicStorageUrl($request, $m->pdf_path),
                     'created_at' => optional($m->created_at)->toISOString(),
                 ];
             })
@@ -257,23 +259,31 @@ class PanierMessageController extends Controller
         if (! $this->userCanAccessThread($request, $thread)) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
+        if ($user->role !== 'professeur') {
+            return response()->json(['message' => 'Only professor can send course messages.'], 403);
+        }
 
         $request->validate([
             'body' => 'nullable|string|max:4000',
             'image' => 'nullable|file|mimes:jpg,jpeg,png,gif,webp|max:10240',
             'audio' => 'nullable|file|mimes:mp3,wav,ogg,webm,m4a,aac|max:15360',
+            'pdf' => 'nullable|file|mimes:pdf|max:15360',
         ]);
 
         $body = trim((string) $request->input('body', ''));
         $imagePath = null;
         $audioPath = null;
+        $pdfPath = null;
         if ($request->hasFile('image')) {
             $imagePath = $request->file('image')->store("panier_msgs/{$user->id}", 'public');
         }
         if ($request->hasFile('audio')) {
             $audioPath = $request->file('audio')->store("panier_msgs/{$user->id}", 'public');
         }
-        if ($body === '' && ! $imagePath && ! $audioPath) {
+        if ($request->hasFile('pdf')) {
+            $pdfPath = $request->file('pdf')->store("panier_msgs/{$user->id}", 'public');
+        }
+        if ($body === '' && ! $imagePath && ! $audioPath && ! $pdfPath) {
             return response()->json(['message' => 'Message is empty.'], 422);
         }
 
@@ -283,6 +293,7 @@ class PanierMessageController extends Controller
             'body' => $body !== '' ? $body : null,
             'image_path' => $imagePath,
             'audio_path' => $audioPath,
+            'pdf_path' => $pdfPath,
         ]);
 
         PanierClassMessageRead::updateOrCreate(
@@ -300,7 +311,49 @@ class PanierMessageController extends Controller
             'body' => $msg->body,
             'image_url' => $this->publicStorageUrl($request, $msg->image_path),
             'audio_url' => $this->publicStorageUrl($request, $msg->audio_path),
+            'pdf_url' => $this->publicStorageUrl($request, $msg->pdf_path),
             'created_at' => optional($msg->created_at)->toISOString(),
         ], 201);
+    }
+
+    public function update(Request $request, int $id)
+    {
+        [, , $user] = $this->resolveActor($request);
+        if (! $user) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+        $msg = PanierClassMessage::findOrFail($id);
+        if ((int) $msg->sender_user_id !== (int) $user->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+        $data = $request->validate([
+            'body' => 'required|string|max:4000',
+        ]);
+        $msg->update(['body' => trim((string) $data['body'])]);
+
+        return response()->json([
+            'id' => $msg->id,
+            'sender_user_id' => $msg->sender_user_id,
+            'sender_name' => $user->name ?? 'User',
+            'body' => $msg->body,
+            'image_url' => $this->publicStorageUrl($request, $msg->image_path),
+            'audio_url' => $this->publicStorageUrl($request, $msg->audio_path),
+            'pdf_url' => $this->publicStorageUrl($request, $msg->pdf_path),
+            'created_at' => optional($msg->created_at)->toISOString(),
+        ]);
+    }
+
+    public function destroy(Request $request, int $id)
+    {
+        [, , $user] = $this->resolveActor($request);
+        if (! $user) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+        $msg = PanierClassMessage::findOrFail($id);
+        if ((int) $msg->sender_user_id !== (int) $user->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+        $msg->delete();
+        return response()->json(['message' => 'Deleted.']);
     }
 }

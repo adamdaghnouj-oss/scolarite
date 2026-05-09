@@ -25,6 +25,7 @@ export default function Login() {
     const role = getStoredRole();
     if (role === "administrateur") navigate("/admin", { replace: true });
     else if (role === "directeur_etudes") navigate("/directeur/classes", { replace: true });
+    else if (role === "directeur_stage") navigate("/directeur-stage/internships", { replace: true });
     else if (role === "professeur") navigate("/professeur", { replace: true });
   }, [navigate]);
 
@@ -76,8 +77,14 @@ export default function Login() {
       const res = await api.post("/verify-otp", { email, code: otpCode });
       setAuth(res.data.token, res.data.user);
       const role = res.data.user?.role;
-      if (role === "administrateur" || role === "directeur_etudes") {
-        navigate(role === "directeur_etudes" ? "/directeur/classes" : "/admin");
+      if (role === "administrateur" || role === "directeur_etudes" || role === "directeur_stage") {
+        navigate(
+          role === "directeur_etudes"
+            ? "/directeur/classes"
+            : role === "directeur_stage"
+              ? "/directeur-stage/internships"
+              : "/admin"
+        );
       } else if (role === "professeur") {
         navigate("/professeur");
       } else if (role === "student") {
@@ -108,8 +115,14 @@ export default function Login() {
 
       setAuth(res.data.token, res.data.user);
       const role = res.data.user?.role;
-      if (role === "administrateur" || role === "directeur_etudes") {
-        navigate(role === "directeur_etudes" ? "/directeur/classes" : "/admin");
+      if (role === "administrateur" || role === "directeur_etudes" || role === "directeur_stage") {
+        navigate(
+          role === "directeur_etudes"
+            ? "/directeur/classes"
+            : role === "directeur_stage"
+              ? "/directeur-stage/internships"
+              : "/admin"
+        );
       } else if (role === "professeur") {
         navigate("/professeur");
       } else if (role === "student") {

@@ -107,9 +107,10 @@ export default function StudentContactsAdminPage() {
           <Link className="admin-nav-item" to="/">{tr("Home", "Accueil")}</Link>
           <Link className="admin-nav-item" to="/admin">{tr("User management", "Gestion des utilisateurs")}</Link>
           <Link className="admin-nav-item" to="/classes">{tr("Classes", "Classes")}</Link>
-          <Link className="admin-nav-item" to="/admin/prof-assignments">{tr("Prof. - modules", "Profs / modules")}</Link>
           <Link className="admin-nav-item" to="/accounts">{tr("Accounts", "Comptes")}</Link>
           <Link className="admin-nav-item admin-nav-item--active" to="/admin/student-contacts">{tr("Student contacts", "Contacts etudiants")}</Link>
+          <Link className="admin-nav-item" to="/admin/grades">{tr("Grades control", "Controle des notes")}</Link>
+          <Link className="admin-nav-item" to="/admin/attendance-certificates">{tr("Attendance certificates", "Attestations de presence")}</Link>
           <Link className="admin-nav-item" to="/change-password">{tr("Change password", "Changer le mot de passe")}</Link>
         </nav>
         <div className="admin-sidebar-footer">

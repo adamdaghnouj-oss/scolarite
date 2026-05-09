@@ -20,6 +20,13 @@ export default function LanguageSwitcher() {
       >
         {t("french")}
       </button>
+      <button
+        type="button"
+        className={`lang-switcher__btn ${language === "ar" ? "active" : ""}`}
+        onClick={() => setLanguage("ar")}
+      >
+        {t("arabic")}
+      </button>
     </div>
   );
 }

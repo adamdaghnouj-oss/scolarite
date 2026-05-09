@@ -11,6 +11,7 @@ class Evaluation extends Model
     use HasFactory;
 
     protected $fillable = [
+        'panier_id',
         'module_id',
         'type',
         'weight',
@@ -24,6 +25,11 @@ class Evaluation extends Model
     public function module(): BelongsTo
     {
         return $this->belongsTo(Module::class);
+    }
+
+    public function panier(): BelongsTo
+    {
+        return $this->belongsTo(Panier::class);
     }
 }
 

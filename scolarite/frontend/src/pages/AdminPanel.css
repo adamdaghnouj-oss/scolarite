@@ -72,6 +72,10 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow: hidden;
 }
 
 .admin-brand {
@@ -110,16 +114,35 @@
 .admin-nav {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+  padding-right: 4px;
+}
+
+.admin-nav-section-label {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #94a3b8;
+  margin: 16px 0 4px;
+  padding: 0 12px;
+}
+
+.admin-nav-section-label:first-child {
+  margin-top: 4px;
 }
 
 .admin-nav-item {
   text-decoration: none;
   color: #334155;
-  padding: 10px 10px;
+  padding: 11px 14px;
   border-radius: 12px;
   border: 1px solid transparent;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  font-size: 14px;
 }
 
 .admin-nav-item:hover {
@@ -129,8 +152,8 @@
 
 .admin-nav-item--active {
   background: rgba(37, 99, 235, 0.12);
-  border-color: rgba(37, 99, 235, 0.28);
-  color: #166534;
+  border-color: rgba(37, 99, 235, 0.35);
+  color: #1d4ed8;
   font-weight: 700;
 }
 
@@ -140,10 +163,21 @@
   border-top: 1px solid #eef2f7;
   color: #64748b;
   font-size: 12px;
+  flex-shrink: 0;
 }
 
 .admin-main {
   padding: 20px 22px 26px;
+}
+
+/* Professor workspace: a bit more air around page content */
+.admin-main--professor {
+  padding: 26px 28px 40px;
+  max-width: 1200px;
+}
+
+.admin-main--professor > .admin-topbar {
+  margin-bottom: 22px;
 }
 
 .admin-topbar {
@@ -218,6 +252,166 @@
   border-radius: 18px;
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.05);
   overflow: hidden;
+}
+
+/* Form-heavy pages: padding inside the card so labels are not clipped on the border */
+.admin-card.admin-card--padded {
+  padding: 24px 26px 26px;
+  overflow: visible;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.admin-card--padded .admin-modal-title,
+.admin-card--padded .admin-card-heading {
+  margin: 0;
+}
+
+.admin-card-heading {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+/* Label above control (not “on the corner” of the input) */
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  max-width: 520px;
+}
+
+.admin-field .admin-label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #475569;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+}
+
+.admin-field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 18px 22px;
+  align-items: end;
+  max-width: 900px;
+}
+
+.admin-field-row .admin-field {
+  max-width: none;
+}
+
+.admin-field--action {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-bottom: 2px;
+}
+
+.admin-field--action .admin-secondary-btn {
+  margin-top: 26px;
+  align-self: flex-start;
+}
+
+.admin-hint {
+  margin: 0;
+  padding: 12px 16px;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.5;
+  max-width: 720px;
+}
+
+.admin-hint strong {
+  color: #0f172a;
+}
+
+/* Tables inside padded cards: inset grid, no double gutter */
+.admin-card--padded .admin-table-wrap {
+  margin: 0;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow: auto;
+  background: #fafbfc;
+}
+
+.admin-card--padded .admin-table {
+  background: #fff;
+}
+
+.admin-card--padded .admin-table thead th:first-child,
+.admin-card--padded .admin-table tbody td:first-child {
+  padding-left: 16px;
+}
+
+.admin-card--padded .admin-table thead th:last-child,
+.admin-card--padded .admin-table tbody td:last-child {
+  padding-right: 16px;
+}
+
+.admin-input--width-md {
+  max-width: 440px;
+}
+
+.admin-input--width-lg {
+  max-width: 560px;
+}
+
+.admin-toolbar-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+.admin-input--time {
+  max-width: 170px;
+}
+
+.prof-attendance-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.prof-session-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 18px 20px 20px;
+  margin-bottom: 14px;
+  background: linear-gradient(180deg, #fafbfc 0%, #f8fafc 100%);
+}
+
+.prof-session-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.prof-session-card__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.prof-session-time {
+  margin: 0;
+  font-weight: 800;
+  color: #0f172a;
+  font-size: 15px;
+  letter-spacing: -0.02em;
 }
 
 .admin-tabs {
@@ -451,9 +645,8 @@
     grid-template-columns: 1fr;
   }
   .admin-sidebar {
-    position: sticky;
-    top: 0;
     z-index: 5;
+    max-height: 100vh;
   }
   .admin-toolbar {
     grid-template-columns: 1fr;

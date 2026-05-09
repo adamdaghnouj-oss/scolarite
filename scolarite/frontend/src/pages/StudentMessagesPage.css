@@ -278,11 +278,19 @@
   border: 1px solid rgba(15, 23, 42, 0.10);
   border-radius: 14px;
   padding: 10px 12px;
+  position: relative;
 }
 .sm-bubble.is-mine{
   background: #2563eb;
   border-color: #2563eb;
   color: #fff;
+}
+.sm-bubble.is-mine a{
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 800;
+}
+.sm-bubble.is-mine a:hover{
+  text-decoration: underline;
 }
 .sm-bubble p{
   margin: 0;
@@ -307,14 +315,196 @@
 .sm-sender-name-btn:hover{
   text-decoration: underline;
 }
-.sm-bubble img{
+.sm-bubble .sm-msg-image-btn{
   margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  display: block;
   max-width: 100%;
-  max-height: 320px;
+  border-radius: 10px;
+  overflow: hidden;
+  line-height: 0;
+}
+.sm-bubble .sm-msg-image-btn:focus-visible{
+  outline: 2px solid rgba(37, 99, 235, 0.85);
+  outline-offset: 2px;
+}
+.sm-bubble .sm-msg-image-thumb{
+  max-width: 100%;
+  max-height: 220px;
+  width: auto;
   border-radius: 10px;
   display: block;
   object-fit: cover;
+  vertical-align: middle;
 }
+
+.sm-img-lightbox{
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: grid;
+  place-items: center;
+  padding: max(12px, env(safe-area-inset-top)) 16px 16px;
+  box-sizing: border-box;
+}
+.sm-img-lightbox-backdrop{
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(15, 23, 42, 0.86);
+  cursor: pointer;
+}
+.sm-img-lightbox-content{
+  position: relative;
+  z-index: 1;
+  width: min(960px, 96vw);
+  max-height: min(88vh, 900px);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #0f172a;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+.sm-img-lightbox-close{
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.sm-img-lightbox-close:hover{
+  background: rgba(255, 255, 255, 0.22);
+}
+.sm-img-lightbox-nav{
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding-bottom: 4px;
+}
+.sm-img-lightbox-nav:hover{
+  background: rgba(255, 255, 255, 0.26);
+}
+.sm-img-lightbox-nav--prev{ left: 10px; }
+.sm-img-lightbox-nav--next{ right: 10px; }
+.sm-img-lightbox-slide{
+  flex: 1;
+  min-height: 0;
+  max-height: min(78vh, 820px);
+  overflow: auto;
+  display: grid;
+  place-items: center;
+  padding: 48px 52px 16px;
+  box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
+}
+.sm-img-lightbox-slide img{
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  max-height: none;
+  object-fit: contain;
+  border-radius: 8px;
+  display: block;
+}
+.sm-img-lightbox-footer{
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.sm-img-lightbox-counter{
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  font-weight: 700;
+}
+.sm-img-lightbox-download{
+  color: #93c5fd;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.sm-img-lightbox-download:hover{
+  text-decoration: underline;
+}
+
+@media (max-width: 640px){
+  .sm-img-lightbox-nav--prev{ left: 6px; }
+  .sm-img-lightbox-nav--next{ right: 6px; }
+  .sm-img-lightbox-slide{
+    padding: 44px 12px 12px;
+  }
+}
+
+.sm-msg-menu-wrap{
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.sm-bubble:hover .sm-msg-menu-wrap{ opacity: 1; }
+.sm-msg-menu-btn{
+  border: 0;
+  background: rgba(148, 163, 184, 0.24);
+  color: inherit;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.sm-msg-menu{
+  position: absolute;
+  right: 0;
+  top: 26px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.14);
+  display: grid;
+  z-index: 20;
+}
+.sm-msg-menu button{
+  border: 0;
+  background: #fff;
+  text-align: left;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.sm-msg-menu button:hover{ background: #f1f5f9; }
 
 .sm-audio{
   margin-top: 8px;

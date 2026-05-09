@@ -17,6 +17,7 @@ class ClassMessage extends Model
         'body',
         'image_path',
         'audio_path',
+        'pdf_path',
     ];
 
     public function classe(): BelongsTo

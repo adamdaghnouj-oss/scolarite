@@ -148,12 +148,30 @@ export default function ProfessorTeachingPage() {
         </div>
 
         <nav className="admin-nav">
+          <p className="admin-nav-section-label">{tr("Menu", "Menu")}</p>
           <Link className="admin-nav-item" to="/">
             {tr("Home", "Accueil")}
           </Link>
+          <p className="admin-nav-section-label">{tr("Teaching", "Enseignement")}</p>
           <Link className="admin-nav-item admin-nav-item--active" to="/professeur">
             {tr("My classes", "Mes classes")}
           </Link>
+          <Link className="admin-nav-item" to="/professeur/notes">
+            {tr("Grades", "Notes")}
+          </Link>
+          <Link className="admin-nav-item" to="/professeur/absences">
+            {tr("Absences", "Absences")}
+          </Link>
+          <Link className="admin-nav-item" to="/professeur/attendance-certificates">
+            {t("menuAttendanceCert")}
+          </Link>
+          <Link className="admin-nav-item" to="/professeur/timetable">
+            {tr("Timetable", "Emploi du temps")}
+          </Link>
+          <Link className="admin-nav-item" to="/professeur/exam-surveillance">
+            {tr("Exam surveillance", "Surveillance examens")}
+          </Link>
+          <p className="admin-nav-section-label">{tr("Campus", "Campus")}</p>
           <Link className="admin-nav-item" to="/student/posts">
             {tr("Posts", "Publications")}
           </Link>
@@ -163,6 +181,7 @@ export default function ProfessorTeachingPage() {
           <Link className="admin-nav-item" to="/messages/panier">
             {t("menuPanierMessages")}
           </Link>
+          <p className="admin-nav-section-label">{tr("Account", "Compte")}</p>
           <Link className="admin-nav-item" to="/profile">
             {tr("Profile", "Profil")}
           </Link>
@@ -178,7 +197,7 @@ export default function ProfessorTeachingPage() {
         </div>
       </aside>
 
-      <main className="admin-main">
+      <main className="admin-main admin-main--professor">
         <header className="admin-topbar">
           <div>
             <h1 className="admin-title">{tr("Classes you teach", "Classes que vous enseignez")}</h1>
@@ -191,27 +210,30 @@ export default function ProfessorTeachingPage() {
           </div>
         </header>
 
-        <section className="admin-card" style={{ marginBottom: "18px" }}>
+        <section className="admin-card admin-card--padded" style={{ marginBottom: "20px" }}>
           {loading && <p className="admin-subtitle">{tr("Loading…", "Chargement…")}</p>}
           {loadError && <p className="auth-error">{loadError}</p>}
           {!loading && !loadError && classes.length === 0 && (
             <p className="admin-subtitle">
               {tr(
-                "You have no module assignments yet. The administrator must assign you to modules (cours / TP) for a class in “Prof. — modules”.",
-                "Vous n'avez pas encore d'affectation. L'administrateur doit vous assigner aux modules (cours / TP) dans « Profs / modules ».",
+                "You have no module assignments yet. The administrator must assign you to each subject (panier: cours + TP) for a class in “Profs / subjects (panier)”.",
+                "Vous n'avez pas encore d'affectation. L'administrateur doit vous assigner a chaque matiere (panier : cours + TP) dans « Profs / matieres (panier) ».",
               )}
             </p>
           )}
 
           {!loading && classes.length > 0 && (
             <>
-              <label className="admin-label">{tr("Class & school year", "Classe et annee scolaire")}</label>
-              <select
-                className="admin-input"
-                style={{ maxWidth: "420px" }}
-                value={selectedKey}
-                onChange={(e) => setSelectedKey(e.target.value)}
-              >
+              <div className="admin-field">
+                <label className="admin-label" htmlFor="prof-class-year">
+                  {tr("Class & school year", "Classe et annee scolaire")}
+                </label>
+                <select
+                  id="prof-class-year"
+                  className="admin-input admin-input--width-md"
+                  value={selectedKey}
+                  onChange={(e) => setSelectedKey(e.target.value)}
+                >
                 {classes.map((c) => {
                   const key = selectionKey(c.class_id, c.annee_scolaire);
                   const label = `${c.classe?.name ?? "—"} — ${c.annee_scolaire}${c.classe?.departement ? ` (${c.classe.departement})` : ""}`;
@@ -221,14 +243,15 @@ export default function ProfessorTeachingPage() {
                     </option>
                   );
                 })}
-              </select>
+                </select>
+              </div>
 
               {selected && (
-                <div style={{ marginTop: "16px" }}>
-                  <p className="admin-subtitle" style={{ marginBottom: "8px" }}>
+                <>
+                  <p className="admin-hint">
                     <strong>{tr("Linked plan", "Plan rattache")}:</strong> {planLabel(selected)}
                   </p>
-                  <div className="admin-table-wrap" style={{ marginTop: "10px" }}>
+                  <div className="admin-table-wrap">
                     <table className="admin-table">
                       <thead>
                         <tr>
@@ -253,14 +276,14 @@ export default function ProfessorTeachingPage() {
                       </tbody>
                     </table>
                   </div>
-                </div>
+                </>
               )}
             </>
           )}
         </section>
 
-        <section className="admin-card">
-          <h2 className="admin-modal-title" style={{ marginBottom: "12px" }}>
+        <section className="admin-card admin-card--padded">
+          <h2 className="admin-card-heading">
             {tr("Student roster (read-only)", "Liste des etudiants (lecture seule)")}
           </h2>
           {studentsError && <p className="auth-error">{studentsError}</p>}

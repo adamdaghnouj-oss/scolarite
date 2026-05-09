@@ -17,6 +17,7 @@ class Classe extends Model
         'name',
         'departement',
         'annee_scolaire',
+        'niveau',
     ];
 
     public function students(): HasMany

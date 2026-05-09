@@ -11,9 +11,18 @@ use App\Http\Controllers\Api\FriendController;
 use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\PostController;
 use App\Http\Controllers\Api\ProfesseurTeachingController;
+use App\Http\Controllers\Api\ProfesseurAcademicController;
+use App\Http\Controllers\Api\StudentAcademicController;
 use App\Http\Controllers\Api\PanierMessageController;
 use App\Http\Controllers\Api\StudentEventController;
 use App\Http\Controllers\Api\StudentContactController;
+use App\Http\Controllers\Api\AdminGradesController;
+use App\Http\Controllers\Api\AttendanceCertificateController;
+use App\Http\Controllers\Api\ClassDocumentController;
+use App\Http\Controllers\Api\ProfessorDocumentController;
+use App\Http\Controllers\Api\DoubleCorrectionRequestController;
+use App\Http\Controllers\Api\InternshipController;
+use App\Http\Controllers\Api\AdminMessageMonitorController;
 
 Route::post('/register',[AuthController::class,'register']);
 Route::post('/login',[AuthController::class,'login']);
@@ -34,6 +43,36 @@ Route::middleware('auth:sanctum')->group(function(){
     Route::middleware('role:professeur')->group(function () {
         Route::get('/professeur/teaching', [ProfesseurTeachingController::class, 'teachingOverview']);
         Route::get('/professeur/classes/{classId}/students', [ProfesseurTeachingController::class, 'classStudents']);
+
+        Route::get('/professeur/paniers/{panierId}/grades-context', [ProfesseurAcademicController::class, 'panierGradesContext']);
+        Route::put('/professeur/paniers/{panierId}/grades', [ProfesseurAcademicController::class, 'upsertPanierGrades']);
+
+        Route::get('/professeur/paniers/{panierId}/absences', [ProfesseurAcademicController::class, 'absenceOverviewPanier']);
+        Route::post('/professeur/paniers/{panierId}/sessions', [ProfesseurAcademicController::class, 'storeSessionPanier']);
+        Route::put('/professeur/paniers/{panierId}/sessions/{sessionId}', [ProfesseurAcademicController::class, 'updateSessionPanier']);
+        Route::delete('/professeur/paniers/{panierId}/sessions/{sessionId}', [ProfesseurAcademicController::class, 'destroySessionPanier']);
+        Route::post('/professeur/paniers/{panierId}/students/{studentId}/dismiss-elimination', [ProfesseurAcademicController::class, 'dismissEliminationPanier']);
+
+        Route::get('/professeur/modules/{moduleId}/notes', [ProfesseurAcademicController::class, 'listNotes']);
+        Route::put('/professeur/modules/{moduleId}/notes', [ProfesseurAcademicController::class, 'upsertNotes']);
+        Route::delete('/professeur/modules/{moduleId}/notes/students/{studentId}', [ProfesseurAcademicController::class, 'deleteStudentNote']);
+
+        Route::get('/professeur/modules/{moduleId}/absences', [ProfesseurAcademicController::class, 'absenceOverview']);
+        Route::post('/professeur/modules/{moduleId}/sessions', [ProfesseurAcademicController::class, 'storeSession']);
+        Route::put('/professeur/modules/{moduleId}/sessions/{sessionId}', [ProfesseurAcademicController::class, 'updateSession']);
+        Route::delete('/professeur/modules/{moduleId}/sessions/{sessionId}', [ProfesseurAcademicController::class, 'destroySession']);
+        Route::post('/professeur/modules/{moduleId}/students/{studentId}/dismiss-elimination', [ProfesseurAcademicController::class, 'dismissElimination']);
+
+        // Attendance certificate: professor inbox + decision
+        Route::get('/professeur/attendance-certificates', [AttendanceCertificateController::class, 'professeurInbox']);
+        Route::post('/professeur/attendance-certificates/{id}/decision', [AttendanceCertificateController::class, 'professeurDecide']);
+
+        // Professor documents (read-only): timetable + exam surveillance
+        Route::get('/professeur/documents/{type}', [ProfessorDocumentController::class, 'professeurIndex']);
+
+        // Double correction requests from students
+        Route::get('/professeur/double-corrections', [DoubleCorrectionRequestController::class, 'professeurIndex']);
+        Route::post('/professeur/double-corrections/{id}/decision', [DoubleCorrectionRequestController::class, 'professeurDecide']);
     });
 
     // Student profile
@@ -65,6 +104,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 // Classes + students per class (admin + directeur des etudes)
 Route::middleware(['auth:sanctum', 'role:administrateur,directeur_etudes'])->group(function () {
     Route::get('/classes/{id}/students', [ClasseController::class, 'students']);
+    Route::get('/classes/{id}/students/attach-candidates', [ClasseController::class, 'attachCandidates']);
+    Route::post('/classes/{id}/students/attach', [ClasseController::class, 'attachStudent']);
 
     // Students per class (allowed for admin + directeur des etudes)
     Route::post('/classes/{id}/students', [ClasseController::class, 'addStudent']);
@@ -81,12 +122,39 @@ Route::middleware(['auth:sanctum', 'role:administrateur'])->group(function () {
     // Delete a student entirely (admin only)
     Route::delete('/classes/{classId}/students/{studentId}', [ClasseController::class, 'deleteStudent']);
 
+    Route::get('/admin/student-contacts', [StudentContactController::class, 'adminIndex']);
+    Route::post('/admin/student-contacts/{id}/reply', [StudentContactController::class, 'adminReply']);
+
+    Route::get('/admin/classes/{classId}/grades-overview', [AdminGradesController::class, 'gradesOverview']);
+    Route::get('/admin/paniers/{panierId}/grades-context', [AdminGradesController::class, 'panierGradesContext']);
+    Route::put('/admin/paniers/{panierId}/grades', [AdminGradesController::class, 'upsertPanierGrades']);
+    Route::get('/admin/classes/{classId}/semester-summary', [AdminGradesController::class, 'semesterSummary']);
+    Route::get('/admin/classes/{classId}/grades/export-pdf', [AdminGradesController::class, 'exportClassGradesPdf']);
+    Route::post('/admin/classes/{classId}/grades/publish', [AdminGradesController::class, 'publishGrades']);
+    Route::post('/admin/classes/{classId}/grades/unpublish', [AdminGradesController::class, 'unpublishGrades']);
+
+    // Attendance certificate: admin overview + PDF
+    Route::get('/admin/attendance-certificates', [AttendanceCertificateController::class, 'adminIndex']);
+    Route::get('/admin/attendance-certificates/{id}/pdf', [AttendanceCertificateController::class, 'adminPdf']);
+    Route::get('/admin/messages', [AdminMessageMonitorController::class, 'index']);
+    Route::delete('/admin/messages/{type}/{id}', [AdminMessageMonitorController::class, 'destroy']);
+});
+
+// Directeur des etudes: prof assignments + timetable/exam calendar publishing
+Route::middleware(['auth:sanctum', 'role:directeur_etudes'])->group(function () {
     // Professors per module (cours / TP), from plan paniers defined by Director of Studies
     Route::get('/plan-etudes/class-module-assignments', [PlanEtudeController::class, 'classModuleAssignmentsContext']);
     Route::put('/plan-etudes/class-module-assignments', [PlanEtudeController::class, 'saveClassModuleAssignments']);
 
-    Route::get('/admin/student-contacts', [StudentContactController::class, 'adminIndex']);
-    Route::post('/admin/student-contacts/{id}/reply', [StudentContactController::class, 'adminReply']);
+    // Timetable + exam calendar documents (upload/manage)
+    Route::get('/admin/class-documents/{type}', [ClassDocumentController::class, 'adminIndex']);
+    Route::post('/admin/class-documents/{type}', [ClassDocumentController::class, 'adminStore']);
+    Route::delete('/admin/class-documents/{id}', [ClassDocumentController::class, 'adminDestroy']);
+
+    // Professor documents (upload/manage): timetable + exam surveillance
+    Route::get('/directeur/professeur-documents/{type}', [ProfessorDocumentController::class, 'directeurIndex']);
+    Route::post('/directeur/professeur-documents/{type}', [ProfessorDocumentController::class, 'directeurStore']);
+    Route::delete('/directeur/professeur-documents/{id}', [ProfessorDocumentController::class, 'directeurDestroy']);
 });
 
 // Student account management (for admin to review student information)
@@ -123,8 +191,8 @@ Route::middleware(['auth:sanctum', 'role:administrateur,directeur_etudes'])->gro
     Route::put('/plan-etudes/modules/{moduleId}', [PlanEtudeController::class, 'updateModule']);
     Route::delete('/plan-etudes/modules/{moduleId}', [PlanEtudeController::class, 'deleteModule']);
 
-    // evaluations
-    Route::post('/plan-etudes/modules/{moduleId}/evaluations', [PlanEtudeController::class, 'addEvaluation']);
+    // evaluations (whole subject / panier)
+    Route::post('/plan-etudes/paniers/{panierId}/evaluations', [PlanEtudeController::class, 'addEvaluationToPanier']);
     Route::put('/plan-etudes/evaluations/{evaluationId}', [PlanEtudeController::class, 'updateEvaluation']);
     Route::delete('/plan-etudes/evaluations/{evaluationId}', [PlanEtudeController::class, 'deleteEvaluation']);
 
@@ -156,6 +224,8 @@ Route::middleware(['auth:sanctum', 'role:student,professeur'])->group(function (
     Route::get('/messages/panier/conversations', [PanierMessageController::class, 'conversations']);
     Route::get('/messages/panier/threads/{threadId}', [PanierMessageController::class, 'thread']);
     Route::post('/messages/panier/threads/{threadId}', [PanierMessageController::class, 'send']);
+    Route::put('/messages/panier/messages/{id}', [PanierMessageController::class, 'update']);
+    Route::delete('/messages/panier/messages/{id}', [PanierMessageController::class, 'destroy']);
 
     Route::get('/posts/feed', [PostController::class, 'feed']);
     Route::get('/posts/my', [PostController::class, 'myPosts']);
@@ -174,9 +244,13 @@ Route::middleware(['auth:sanctum', 'role:student'])->group(function () {
     Route::get('/messages/conversations', [MessageController::class, 'conversations']);
     Route::get('/messages/threads/{friendId}', [MessageController::class, 'thread']);
     Route::post('/messages/threads/{friendId}', [MessageController::class, 'send']);
+    Route::put('/messages/threads/messages/{id}', [MessageController::class, 'updateFriendMessage']);
+    Route::delete('/messages/threads/messages/{id}', [MessageController::class, 'destroyFriendMessage']);
     Route::get('/messages/class/conversation', [MessageController::class, 'classConversation']);
     Route::get('/messages/class/thread', [MessageController::class, 'classThread']);
     Route::post('/messages/class/thread', [MessageController::class, 'sendClassMessage']);
+    Route::put('/messages/class/messages/{id}', [MessageController::class, 'updateClassMessage']);
+    Route::delete('/messages/class/messages/{id}', [MessageController::class, 'destroyClassMessage']);
     Route::get('/messages/class/members', [MessageController::class, 'classMembers']);
 
     Route::get('/posts/stories', [PostController::class, 'stories']);
@@ -193,4 +267,43 @@ Route::middleware(['auth:sanctum', 'role:student'])->group(function () {
 
     Route::get('/student-contacts', [StudentContactController::class, 'studentIndex']);
     Route::post('/student-contacts', [StudentContactController::class, 'studentStore']);
+
+    Route::get('/student/absences-by-panier', [StudentAcademicController::class, 'absencesByPanier']);
+    Route::get('/student/my-grades', [StudentAcademicController::class, 'myGrades']);
+
+    // Double correction requests (student)
+    Route::get('/student/double-corrections', [DoubleCorrectionRequestController::class, 'studentIndex']);
+    Route::post('/student/double-corrections', [DoubleCorrectionRequestController::class, 'studentStore']);
+
+    // Attendance certificate: student create + list
+    Route::get('/student/attendance-certificates', [AttendanceCertificateController::class, 'studentIndex']);
+    Route::post('/student/attendance-certificates', [AttendanceCertificateController::class, 'studentStore']);
+
+    // Timetable + exam calendar documents (student view - only active window)
+    Route::get('/student/class-documents/{type}', [ClassDocumentController::class, 'studentIndex']);
+
+    // Internship workflow
+    Route::get('/student/internships/context', [InternshipController::class, 'studentContext']);
+    Route::get('/student/internships', [InternshipController::class, 'studentIndex']);
+    Route::post('/student/internships', [InternshipController::class, 'studentStore']);
+    Route::post('/student/internships/demande-pdf-preview', [InternshipController::class, 'studentDemandePdfPreview']);
+    Route::post('/student/internships/submit-signed', [InternshipController::class, 'studentSubmitSigned']);
+    Route::put('/student/internships/{id}', [InternshipController::class, 'studentUpdate']);
+    Route::post('/student/internships/{id}/upload-signed-demande', [InternshipController::class, 'studentUploadSignedDemande']);
+    Route::post('/student/internships/{id}/upload-rapport', [InternshipController::class, 'studentUploadRapport']);
+    Route::post('/student/internships/{id}/upload-attestation', [InternshipController::class, 'studentUploadAttestation']);
+    Route::get('/student/internships/{id}/demande-pdf', [InternshipController::class, 'studentDemandePdf']);
+    Route::get('/student/internships/{id}/affectation-pdf', [InternshipController::class, 'studentAffectationPdf']);
+    Route::get('/student/internships/{id}/files/{kind}/view', [InternshipController::class, 'studentViewFile']);
+    Route::get('/student/internships/{id}/files/{kind}', [InternshipController::class, 'studentDownloadFile']);
+});
+
+// Directeur de stage
+Route::middleware(['auth:sanctum', 'role:directeur_stage'])->group(function () {
+    Route::get('/directeur-stage/internships', [InternshipController::class, 'directeurIndex']);
+    Route::post('/directeur-stage/internships/{id}/decision', [InternshipController::class, 'directeurDecision']);
+    Route::post('/directeur-stage/internships/{id}/document-decision', [InternshipController::class, 'directeurDocumentDecision']);
+    Route::delete('/directeur-stage/internships/{id}', [InternshipController::class, 'directeurDestroy']);
+    Route::get('/directeur-stage/internships/{id}/files/{kind}/view', [InternshipController::class, 'directeurViewFile']);
+    Route::get('/directeur-stage/internships/{id}/files/{kind}', [InternshipController::class, 'directeurDownloadFile']);
 });

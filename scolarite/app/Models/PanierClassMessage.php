@@ -14,6 +14,7 @@ class PanierClassMessage extends Model
         'body',
         'image_path',
         'audio_path',
+        'pdf_path',
     ];
 
     public function thread(): BelongsTo

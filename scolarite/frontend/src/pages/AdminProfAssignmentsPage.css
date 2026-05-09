@@ -175,6 +175,68 @@
   line-height: 1.35;
 }
 
+.apa-panier-tp-bar,
+.apa-panier-cours-bar {
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  box-sizing: border-box;
+}
+
+.apa-panier-cours-bar {
+  margin-bottom: 14px;
+}
+
+.apa-panier-tp-label,
+.apa-panier-cours-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 10px;
+}
+
+.apa-panier-tp-controls,
+.apa-panier-cours-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: center;
+}
+
+.apa-panier-tp-select,
+.apa-panier-cours-select {
+  min-width: min(280px, 100%);
+  max-width: 100%;
+  flex: 1 1 220px;
+}
+
+.apa-check--compact {
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+  max-width: none;
+}
+
+.apa-check--compact input {
+  margin-top: 0;
+}
+
+.apa-check--nowrap {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.apa-panier-tp-warn,
+.apa-panier-cours-warn {
+  margin: 12px 0 0;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #9a3412;
+}
+
 /* Table: horizontal scroll before squashing text; fixed columns = same width every panier */
 .apa-table-wrap {
   overflow-x: auto;
@@ -188,6 +250,15 @@
   table-layout: fixed;
   width: 100%;
   min-width: 960px;
+}
+
+.admin-table.apa-table.apa-table--narrow {
+  min-width: 720px;
+}
+
+.admin-table.apa-table.apa-table--modules-only {
+  min-width: 0;
+  table-layout: auto;
 }
 
 .apa-col--module {

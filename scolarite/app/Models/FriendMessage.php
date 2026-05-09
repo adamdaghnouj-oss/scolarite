@@ -16,6 +16,7 @@ class FriendMessage extends Model
         'body',
         'image_path',
         'audio_path',
+        'pdf_path',
         'read_at',
     ];
 

@@ -48,6 +48,11 @@ class User extends Authenticatable
         return $this->hasOne(DirecteurEtudes::class);
     }
 
+    public function directeurStage(): HasOne
+    {
+        return $this->hasOne(DirecteurStage::class);
+    }
+
     protected $hidden = [
         'password',
         'remember_token',

@@ -26,5 +26,10 @@ class Panier extends Model
     {
         return $this->hasMany(Module::class);
     }
+
+    public function evaluations(): HasMany
+    {
+        return $this->hasMany(Evaluation::class);
+    }
 }
 

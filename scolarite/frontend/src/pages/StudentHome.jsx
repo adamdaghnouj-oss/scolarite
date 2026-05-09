@@ -5,12 +5,20 @@ import { api } from "../api/axios";
 import { clearAuth, getStoredRole, isAuthed } from "../auth/auth";
 import { useLanguage } from "../i18n/LanguageContext";
 
+const STUDENT_NOTIF_LAST_SEEN_KEY = "student_notifications_last_seen_at";
+
+function toMs(v) {
+  if (!v) return 0;
+  const ms = new Date(v).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
 export default function StudentHome() {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
   const [quickSearch, setQuickSearch] = useState("");
-  const [notif, setNotif] = useState({ friends: 0, messages: 0 });
+  const [notif, setNotif] = useState({ friends: 0, messages: 0, programs: 0, events: 0, internships: 0 });
   const { t } = useLanguage();
 
   useEffect(() => {
@@ -47,18 +55,23 @@ export default function StudentHome() {
   const isStudentLoggedIn = authed && userRole === "student";
   const isAdminLoggedIn = authed && userRole === "administrateur";
   const isDirecteurLoggedIn = authed && userRole === "directeur_etudes";
+  const isDirecteurStageLoggedIn = authed && userRole === "directeur_stage";
   const isProfLoggedIn = authed && userRole === "professeur";
-  const isStaffLoggedIn = isAdminLoggedIn || isDirecteurLoggedIn || isProfLoggedIn;
+  const isStaffLoggedIn = isAdminLoggedIn || isDirecteurLoggedIn || isDirecteurStageLoggedIn || isProfLoggedIn;
 
   const staffDashboardTo = isAdminLoggedIn
     ? "/admin"
     : isDirecteurLoggedIn
       ? "/directeur/classes"
+      : isDirecteurStageLoggedIn
+        ? "/directeur-stage/internships"
       : "/professeur";
   const staffDashboardLabel = isAdminLoggedIn
     ? t("administration")
     : isDirecteurLoggedIn
       ? t("directorPortal")
+      : isDirecteurStageLoggedIn
+        ? "Directeur des Stage"
       : t("professorPortal");
 
   async function handleLogout() {
@@ -80,12 +93,19 @@ export default function StudentHome() {
       try {
         const res = await api.get("/friends/notifications/summary");
         if (!active) return;
-        setNotif({
+        setNotif((prev) => ({
+          ...prev,
           friends: Number(res.data?.friends_total_notifications || 0),
           messages: Number(res.data?.messages_unread || 0),
-        });
+        }));
       } catch {
-        if (active) setNotif({ friends: 0, messages: 0 });
+        if (active) {
+          setNotif((prev) => ({
+            ...prev,
+            friends: 0,
+            messages: 0,
+          }));
+        }
       }
     };
     loadNotif();
@@ -95,6 +115,63 @@ export default function StudentHome() {
       clearInterval(id);
     };
   }, [isStudentLoggedIn]);
+
+  useEffect(() => {
+    if (!isStudentLoggedIn) return undefined;
+    let active = true;
+
+    const loadAcademicNotif = async () => {
+      const nowIso = new Date().toISOString();
+      const lastSeenRaw = localStorage.getItem(STUDENT_NOTIF_LAST_SEEN_KEY);
+      const lastSeenMs = toMs(lastSeenRaw) || 0;
+      try {
+        const [timetableRes, examRes, eventsRes, internshipsRes] = await Promise.all([
+          api.get("/student/class-documents/timetable"),
+          api.get("/student/class-documents/exam_calendar"),
+          api.get("/events"),
+          api.get("/student/internships"),
+        ]);
+
+        if (!active) return;
+
+        const timetableRows = Array.isArray(timetableRes.data) ? timetableRes.data : [];
+        const examRows = Array.isArray(examRes.data) ? examRes.data : [];
+        const eventsRows = Array.isArray(eventsRes.data) ? eventsRes.data : [];
+        const internshipRows = Array.isArray(internshipsRes.data) ? internshipsRes.data : [];
+
+        const newProgramCount = [...timetableRows, ...examRows].filter((d) => toMs(d?.created_at || d?.updated_at) > lastSeenMs).length;
+        const newEventsCount = eventsRows.filter((e) => toMs(e?.created_at || e?.updated_at) > lastSeenMs).length;
+        const approvedInternshipsCount = internshipRows.filter(
+          (r) => r?.status === "approved" && toMs(r?.approved_at || r?.updated_at) > lastSeenMs
+        ).length;
+
+        setNotif((prev) => ({
+          ...prev,
+          programs: newProgramCount,
+          events: newEventsCount,
+          internships: approvedInternshipsCount,
+        }));
+
+        if (!lastSeenRaw) {
+          localStorage.setItem(STUDENT_NOTIF_LAST_SEEN_KEY, nowIso);
+        }
+      } catch {
+        // Keep previous academic counts on transient errors to avoid badge flicker.
+      }
+    };
+
+    loadAcademicNotif();
+    const id = setInterval(loadAcademicNotif, 12000);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
+  }, [isStudentLoggedIn]);
+
+  function markNotificationsAsRead() {
+    localStorage.setItem(STUDENT_NOTIF_LAST_SEEN_KEY, new Date().toISOString());
+    setNotif((prev) => ({ ...prev, programs: 0, events: 0, internships: 0 }));
+  }
 
   // Provided landing images (src/assets)
   // Main hero background
@@ -133,6 +210,8 @@ export default function StudentHome() {
   // eslint-disable-next-line import/no-unresolved
   const acadGif = new URL("../assets/acad.gif", import.meta.url).toString();
   // eslint-disable-next-line import/no-unresolved
+  const gradeGif = new URL("../assets/grade.gif", import.meta.url).toString();
+  // eslint-disable-next-line import/no-unresolved
   const amiesGif = new URL("../assets/amies.gif", import.meta.url).toString();
   // eslint-disable-next-line import/no-unresolved
   const emptGif = new URL("../assets/empt.gif", import.meta.url).toString();
@@ -151,33 +230,36 @@ export default function StudentHome() {
   // eslint-disable-next-line import/no-unresolved
   const postGif = new URL("./post.gif", import.meta.url).toString();
 
-  const navLinks = [
-    { to: "/", label: t("navHome") },
-    { to: "/student/about", label: t("navAbout") },
+  const navLinks = useMemo(() => {
+    const base = [
+      { to: "/", label: t("navHome") },
+      { to: "/student/about", label: t("navAbout") },
     { to: "/student/posts", label: "Post" },
-    { to: "/student/contact", label: t("navContact") },
-  ];
+      { to: "/student/contact", label: t("navContact") },
+    ];
+    if (isStudentLoggedIn) {
+      base.splice(3, 0, { to: "/student/grades", label: t("menuGrades") });
+    }
+    return base;
+  }, [isStudentLoggedIn, t]);
 
   const quickMenuItems = [
     { icon: "👤", label: t("profile"), to: "/profile", gif: profileGif, key: "profile" },
     { icon: "📝", label: t("menuPost"), to: "/student/posts", gif: postGif, key: "post" },
     { icon: "ℹ️", label: t("navAbout"), to: "/student/about", gif: aboutGif, key: "about" },
-    { icon: "📚", label: t("navPrograms"), to: "/student/plans", gif: programGif, key: "programs" },
+    { icon: "📚", label: t("navPrograms"), to: "/student/plans", gif: programGif, key: "programs", badge: notif.programs },
+    { icon: "📊", label: t("menuGrades"), to: "/student/grades", gif: gradeGif, key: "grades" },
     { icon: "✉️", label: t("navContact"), to: "/student/contact", gif: contactGif, key: "contact" },
-    { icon: "🎉", label: t("menuEvents"), to: "/student/events", gif: eventsGif, key: "events" },
+    { icon: "🎉", label: t("menuEvents"), to: "/student/events", gif: eventsGif, key: "events", badge: notif.events },
     { icon: "🗓️", label: t("menuCalendar"), href: "#", gif: calendarGif, key: "calendrier" },
-    { icon: "📄", label: t("menuDocuments"), href: "#", gif: documGif, key: "documents" },
-    { icon: "📢", label: t("menuAnnouncements"), href: "#", gif: annGif, key: "annonces" },
     { icon: "💬", label: t("menuMessaging"), to: "/student/messages", gif: msgGif, key: "mesagerie", badge: notif.messages },
-    { icon: "🎓", label: t("menuAcademic"), href: "#", gif: acadGif, key: "academique" },
     { icon: "👥", label: t("menuFriends"), to: "/student/friends", gif: amiesGif, key: "amis", badge: notif.friends },
-    { icon: "⏰", label: t("menuSchedule"), href: "#", gif: emptGif, key: "emploi" },
-    { icon: "📝", label: t("menuExamCalendar"), href: "#", gif: calexGif, key: "calexam" },
-    { icon: "🚫", label: t("menuAbsenceNotices"), href: "#", gif: absenceGif, key: "absence" },
+    { icon: "⏰", label: t("menuSchedule"), to: "/student/timetable", gif: emptGif, key: "emploi" },
+    { icon: "📝", label: t("menuExamCalendar"), to: "/student/exam-calendar", gif: calexGif, key: "calexam" },
+    { icon: "🚫", label: t("menuAbsenceNotices"), to: "/student/absences", gif: absenceGif, key: "absence" },
     { icon: "🔁", label: t("menuRetakes"), href: "#", gif: rattGif, key: "rattrapages" },
-    { icon: "🏅", label: t("menuDeliberation"), href: "#", gif: deliGif, key: "deliberation" },
-    { icon: "🏢", label: t("menuInternships"), href: "#", gif: stageGif, key: "stages" },
-    { icon: "✅", label: t("menuAttendanceCert"), href: "#", gif: attpGif, key: "attestation" },
+    { icon: "🏢", label: t("menuInternships"), to: "/student/internships", gif: stageGif, key: "stages", badge: notif.internships },
+    { icon: "✅", label: t("menuAttendanceCert"), to: "/student/attendance-certificates", gif: attpGif, key: "attestation" },
   ];
 
   const filteredQuickMenuItems = useMemo(() => {
@@ -185,7 +267,12 @@ export default function StudentHome() {
     if (!q) return quickMenuItems;
     return quickMenuItems.filter((item) => item.label.toLowerCase().includes(q));
   }, [quickMenuItems, quickSearch]);
-  const totalMenuNotifications = Number(notif.friends || 0) + Number(notif.messages || 0);
+  const totalMenuNotifications =
+    Number(notif.friends || 0) +
+    Number(notif.messages || 0) +
+    Number(notif.programs || 0) +
+    Number(notif.events || 0) +
+    Number(notif.internships || 0);
 
   return (
     <div className="sh-page" id="home">
@@ -342,8 +429,17 @@ export default function StudentHome() {
               <div className="sh-drawer-title">{t("menu")}</div>
               <button type="button" className="sh-drawer-close" onClick={() => setSideMenuOpen(false)}>✕</button>
             </div>
-
-            <p className="sh-drawer-subtitle">{t("quickAccess")}</p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <p className="sh-drawer-subtitle">{t("quickAccess")}</p>
+              <button
+                type="button"
+                className="sh-side-menu-link"
+                onClick={markNotificationsAsRead}
+                style={{ padding: "6px 10px", fontSize: 12 }}
+              >
+                Mark notifications as read
+              </button>
+            </div>
             <form
               className="sh-drawer-search"
               onSubmit={(e) => {
