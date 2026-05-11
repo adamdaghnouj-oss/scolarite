@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
-import { clearAuth, getStoredRole } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./StudentEventsPage.css";
 
@@ -41,16 +41,9 @@ function formatEventDate(isoValue) {
 export default function StudentEventsPage() {
   const navigate = useNavigate();
   const { t } = useLanguage();
-  const appRole = getStoredRole();
-  const myUserId = (() => {
-    try {
-      const raw = localStorage.getItem("user");
-      const user = raw ? JSON.parse(raw) : null;
-      return user?.id ? Number(user.id) : null;
-    } catch {
-      return null;
-    }
-  })();
+  const auth = useAuth();
+  const appRole = auth.role;
+  const myUserId = auth.user?.id ? Number(auth.user.id) : null;
 
   const [events, setEvents] = useState([]);
   const [activeSlide, setActiveSlide] = useState(0);
@@ -110,14 +103,8 @@ export default function StudentEventsPage() {
   }, [sortedEvents.length]);
 
   async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
+    await auth.logout();
+    navigate("/login");
   }
 
   function updateField(field, value) {

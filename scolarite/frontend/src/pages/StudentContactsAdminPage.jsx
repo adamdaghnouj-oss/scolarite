@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api/axios";
-import { clearAuth } from "../auth/auth";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./AdminPanel.css";
+import StaffSidebar from "../components/StaffSidebar";
 
 function formatDate(isoValue) {
   if (!isoValue) return "N/A";
@@ -18,9 +17,8 @@ function formatDate(isoValue) {
 }
 
 export default function StudentContactsAdminPage() {
-  const navigate = useNavigate();
   const { language } = useLanguage();
-  const tr = (en, fr) => (language === "fr" ? fr : en);
+  const tr = useCallback((en, fr) => (language === "fr" ? fr : en), [language]);
 
   const [contacts, setContacts] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -29,7 +27,7 @@ export default function StudentContactsAdminPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  async function loadContacts() {
+  const loadContacts = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -43,11 +41,11 @@ export default function StudentContactsAdminPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [selectedId, tr]);
 
   useEffect(() => {
     loadContacts();
-  }, []);
+  }, [loadContacts]);
 
   const sortedContacts = useMemo(
     () => [...contacts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
@@ -82,43 +80,9 @@ export default function StudentContactsAdminPage() {
     }
   }
 
-  async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
-  }
-
   return (
     <div className="admin-wrap">
-      <aside className="admin-sidebar">
-        <div className="admin-brand">
-          <div className="admin-brand-mark" aria-hidden="true">S</div>
-          <div className="admin-brand-text">
-            <div className="admin-brand-title">Scolarite</div>
-            <div className="admin-brand-subtitle">Administration</div>
-          </div>
-        </div>
-        <nav className="admin-nav">
-          <Link className="admin-nav-item" to="/">{tr("Home", "Accueil")}</Link>
-          <Link className="admin-nav-item" to="/admin">{tr("User management", "Gestion des utilisateurs")}</Link>
-          <Link className="admin-nav-item" to="/classes">{tr("Classes", "Classes")}</Link>
-          <Link className="admin-nav-item" to="/accounts">{tr("Accounts", "Comptes")}</Link>
-          <Link className="admin-nav-item admin-nav-item--active" to="/admin/student-contacts">{tr("Student contacts", "Contacts etudiants")}</Link>
-          <Link className="admin-nav-item" to="/admin/grades">{tr("Grades control", "Controle des notes")}</Link>
-          <Link className="admin-nav-item" to="/admin/attendance-certificates">{tr("Attendance certificates", "Attestations de presence")}</Link>
-          <Link className="admin-nav-item" to="/change-password">{tr("Change password", "Changer le mot de passe")}</Link>
-        </nav>
-        <div className="admin-sidebar-footer">
-          <button type="button" className="admin-secondary-btn" style={{ width: "100%" }} onClick={handleLogout}>
-            {tr("Logout", "Deconnexion")}
-          </button>
-        </div>
-      </aside>
+      <StaffSidebar variant="admin" />
 
       <main className="admin-main">
         <header className="admin-topbar">

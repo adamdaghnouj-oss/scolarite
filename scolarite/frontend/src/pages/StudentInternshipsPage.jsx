@@ -1,13 +1,62 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
-import { clearAuth } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./StudentPlansPage.css";
 import "./StudentInternshipsPage.css";
 
+function internshipDocStatusLabel(status, tr) {
+  switch (status) {
+    case "not_uploaded":
+      return tr("Not uploaded", "Non téléversé");
+    case "pending_review":
+      return tr("Waiting for director review", "En attente du directeur");
+    case "accepted":
+      return tr("Accepted", "Accepté");
+    case "rejected":
+      return tr("Rejected", "Refusé");
+    default:
+      return status || "—";
+  }
+}
+
+const INTERNSHIP_POST_DIRECTOR_STATUSES = ["approved", "documents_pending_review", "documents_accepted"];
+
+function isInternshipPostDirectorStatus(status) {
+  return INTERNSHIP_POST_DIRECTOR_STATUSES.includes(status);
+}
+
+function internshipMainStatusLabel(status, tr) {
+  switch (status) {
+    case "documents_pending_review":
+      return tr("Documents — awaiting validation", "Documents — en attente de validation");
+    case "documents_accepted":
+      return tr("Documents accepted", "Documents acceptés");
+    case "approved":
+      return tr("Approved", "Acceptée");
+    case "signed_submitted":
+      return tr("Submitted", "Soumis");
+    case "draft":
+      return tr("Draft", "Brouillon");
+    case "rejected":
+      return tr("Rejected", "Refusée");
+    default:
+      return status || "—";
+  }
+}
+
+function internshipMainStatusPillClass(status) {
+  if (status === "documents_accepted") return "is-ok";
+  if (status === "documents_pending_review") return "is-warn";
+  if (status === "approved") return "is-ok";
+  if (status === "rejected") return "is-bad";
+  return "";
+}
+
 export default function StudentInternshipsPage() {
   const navigate = useNavigate();
+  const auth = useAuth();
   const { language, t } = useLanguage();
   const tr = (en, fr) => (language === "fr" ? fr : en);
 
@@ -56,14 +105,8 @@ export default function StudentInternshipsPage() {
   }, []);
 
   async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
+    await auth.logout();
+    navigate("/login");
   }
 
   const classesByDept = useMemo(
@@ -254,19 +297,6 @@ export default function StudentInternshipsPage() {
     window.URL.revokeObjectURL(url);
   }
 
-  async function downloadStoredFile(id, kind) {
-    const res = await api.get(`/student/internships/${id}/files/${kind}`, { responseType: "blob" });
-    const blob = new Blob([res.data]);
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${kind}_${id}`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
-  }
-
   async function viewStoredFile(id, kind) {
     const res = await api.get(`/student/internships/${id}/files/${kind}/view`, { responseType: "blob" });
     const mime = res.headers?.["content-type"] || "application/pdf";
@@ -433,14 +463,18 @@ export default function StudentInternshipsPage() {
                     <td>{r.internship_type}</td>
                     <td>{r.company_name}</td>
                     <td>
-                      <span className={`spn-pill ${r.status === "approved" ? "is-ok" : r.status === "rejected" ? "is-bad" : ""}`}>
-                        {r.status}
+                      <span className={`spn-pill ${internshipMainStatusPillClass(r.status)}`} title={r.status}>
+                        {internshipMainStatusLabel(r.status, tr)}
                       </span>
                     </td>
                     <td>
                       <div className="si-deadlines">
                         <div>{tr("Report", "Rapport")}: <strong>{r.deadline_rapport || "—"}</strong></div>
                         <div>{tr("Attestation", "Attestation")}: <strong>{r.deadline_attestation || "—"}</strong></div>
+                        <div>
+                          {tr("Defense (soutenance)", "Soutenance")}:{" "}
+                          <strong>{r.soutenance_published_at && r.soutenance_date ? r.soutenance_date : "—"}</strong>
+                        </div>
                       </div>
                     </td>
                     <td>
@@ -466,8 +500,13 @@ export default function StudentInternshipsPage() {
                           </>
                         ) : null}
 
-                        {r.status === "approved" ? (
+                        {isInternshipPostDirectorStatus(r.status) ? (
                           <>
+                            {r.status === "documents_accepted" ? (
+                              <p className="si-sub" style={{ color: "#15803d", fontWeight: 700 }}>
+                                {tr("Report and certificate validated by the director.", "Rapport et attestation validés par le directeur.")}
+                              </p>
+                            ) : null}
                             {docsLockedRows[r.id] ? (
                               <button
                                 type="button"
@@ -486,52 +525,80 @@ export default function StudentInternshipsPage() {
                                 <button type="button" className="spn-btn spn-btn-ghost" onClick={() => downloadPdf(r.id, "affectation-pdf")}>
                                   {tr("Assignment letter PDF", "Lettre d'affectation (PDF)")}
                                 </button>
-                                <label className="spn-btn spn-btn-ghost">
-                                  {r.rapport_url ? tr("Replace report", "Remplacer rapport") : tr("Upload report", "Téléverser rapport")}
-                                  <input
-                                    type="file"
-                                    style={{ display: "none" }}
-                                    onChange={(e) => setPendingDoc(r.id, "rapport", e.target.files?.[0] || null)}
-                                  />
-                                </label>
-                                <label className="spn-btn spn-btn-ghost">
-                                  {r.attestation_url ? tr("Replace attestation", "Remplacer attestation") : tr("Upload attestation", "Téléverser attestation")}
-                                  <input
-                                    type="file"
-                                    style={{ display: "none" }}
-                                    onChange={(e) => setPendingDoc(r.id, "attestation", e.target.files?.[0] || null)}
-                                  />
-                                </label>
-                                {pendingDocs[r.id]?.rapport ? (
-                                  <span className="si-sub">{tr("Selected report", "Rapport sélectionné")}: <strong>{pendingDocs[r.id].rapport.name}</strong></span>
-                                ) : null}
-                                {pendingDocs[r.id]?.attestation ? (
-                                  <span className="si-sub">{tr("Selected attestation", "Attestation sélectionnée")}: <strong>{pendingDocs[r.id].attestation.name}</strong></span>
+                                {r.status !== "documents_accepted" ? (
+                                  <>
+                                    <label className="spn-btn spn-btn-ghost">
+                                      {r.rapport_url ? tr("Replace report", "Remplacer rapport") : tr("Upload report", "Téléverser rapport")}
+                                      <input
+                                        type="file"
+                                        style={{ display: "none" }}
+                                        onChange={(e) => setPendingDoc(r.id, "rapport", e.target.files?.[0] || null)}
+                                      />
+                                    </label>
+                                    <label className="spn-btn spn-btn-ghost">
+                                      {r.attestation_url ? tr("Replace attestation", "Remplacer attestation") : tr("Upload attestation", "Téléverser attestation")}
+                                      <input
+                                        type="file"
+                                        style={{ display: "none" }}
+                                        onChange={(e) => setPendingDoc(r.id, "attestation", e.target.files?.[0] || null)}
+                                      />
+                                    </label>
+                                    {pendingDocs[r.id]?.rapport ? (
+                                      <span className="si-sub">{tr("Selected report", "Rapport sélectionné")}: <strong>{pendingDocs[r.id].rapport.name}</strong></span>
+                                    ) : null}
+                                    {pendingDocs[r.id]?.attestation ? (
+                                      <span className="si-sub">{tr("Selected attestation", "Attestation sélectionnée")}: <strong>{pendingDocs[r.id].attestation.name}</strong></span>
+                                    ) : null}
+                                  </>
                                 ) : null}
                                 {r.rapport_name ? (
-                                  <span className="si-sub" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                                    {tr("Report file", "Fichier rapport")}: <strong>{r.rapport_name}</strong> ({r.rapport_status || "pending_review"})
-                                    <button type="button" className="spn-btn spn-btn-ghost" onClick={() => viewStoredFile(r.id, "rapport")}>
-                                      {tr("View report", "Voir rapport")}
-                                    </button>
+                                  <span className="si-sub" style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                      {tr("Report file", "Fichier rapport")}: <strong>{r.rapport_name}</strong>
+                                      <span className={`spn-pill ${r.rapport_status === "accepted" ? "is-ok" : r.rapport_status === "rejected" ? "is-bad" : ""}`}>
+                                        {internshipDocStatusLabel(r.rapport_status || "pending_review", tr)}
+                                      </span>
+                                      <button type="button" className="spn-btn spn-btn-ghost" onClick={() => viewStoredFile(r.id, "rapport")}>
+                                        {tr("View report", "Voir rapport")}
+                                      </button>
+                                    </span>
+                                    {r.rapport_status === "pending_review" ? (
+                                      <span className="si-wait">{tr("Your report is being reviewed.", "Votre rapport est en cours de validation.")}</span>
+                                    ) : null}
+                                    {r.rapport_review_comment ? (
+                                      <span className="si-comment">{tr("Director (report)", "Directeur (rapport)")}: {r.rapport_review_comment}</span>
+                                    ) : null}
                                   </span>
                                 ) : null}
                                 {r.attestation_name ? (
-                                  <span className="si-sub" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                                    {tr("Attestation file", "Fichier attestation")}: <strong>{r.attestation_name}</strong> ({r.attestation_status || "pending_review"})
-                                    <button type="button" className="spn-btn spn-btn-ghost" onClick={() => viewStoredFile(r.id, "attestation")}>
-                                      {tr("View attestation", "Voir attestation")}
-                                    </button>
+                                  <span className="si-sub" style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                      {tr("Attestation file", "Fichier attestation")}: <strong>{r.attestation_name}</strong>
+                                      <span className={`spn-pill ${r.attestation_status === "accepted" ? "is-ok" : r.attestation_status === "rejected" ? "is-bad" : ""}`}>
+                                        {internshipDocStatusLabel(r.attestation_status || "pending_review", tr)}
+                                      </span>
+                                      <button type="button" className="spn-btn spn-btn-ghost" onClick={() => viewStoredFile(r.id, "attestation")}>
+                                        {tr("View attestation", "Voir attestation")}
+                                      </button>
+                                    </span>
+                                    {r.attestation_status === "pending_review" ? (
+                                      <span className="si-wait">{tr("Your attestation is being reviewed.", "Votre attestation est en cours de validation.")}</span>
+                                    ) : null}
+                                    {r.attestation_review_comment ? (
+                                      <span className="si-comment">{tr("Director (attestation)", "Directeur (attestation)")}: {r.attestation_review_comment}</span>
+                                    ) : null}
                                   </span>
                                 ) : null}
-                                <button
-                                  type="button"
-                                  className="spn-btn spn-btn-primary"
-                                  onClick={() => savePendingDocs(r.id)}
-                                  disabled={saving || (!pendingDocs[r.id]?.rapport && !pendingDocs[r.id]?.attestation)}
-                                >
-                                  {saving ? tr("Saving…", "Enregistrement…") : tr("Save documents", "Enregistrer les documents")}
-                                </button>
+                                {r.status !== "documents_accepted" ? (
+                                  <button
+                                    type="button"
+                                    className="spn-btn spn-btn-primary"
+                                    onClick={() => savePendingDocs(r.id)}
+                                    disabled={saving || (!pendingDocs[r.id]?.rapport && !pendingDocs[r.id]?.attestation)}
+                                  >
+                                    {saving ? tr("Saving…", "Enregistrement…") : tr("Save documents", "Enregistrer les documents")}
+                                  </button>
+                                ) : null}
                               </>
                             )}
                           </>
@@ -588,7 +655,62 @@ export default function StudentInternshipsPage() {
                         </div>
                       ) : null}
 
-                      {r.director_comment ? <div className="si-comment">{tr("Director comment", "Commentaire")} : {r.director_comment}</div> : null}
+                      {isInternshipPostDirectorStatus(r.status) && r.internship_type === "pfe" && r.rapport_status === "accepted" && !r.encadrant_name ? (
+                        <div className="si-wait" style={{ marginTop: 10 }}>
+                          {tr(
+                            "Supervisor and supervision dates will appear here once the director assigns them.",
+                            "L’encadrant et les dates d’encadrement apparaîtront ici après affectation par le directeur.",
+                          )}
+                        </div>
+                      ) : null}
+
+                      {isInternshipPostDirectorStatus(r.status) && r.internship_type === "pfe" && r.encadrant_name ? (
+                        <div className="si-comment" style={{ marginTop: 10 }}>
+                          <strong>{tr("PFE supervision", "Encadrement PFE")}</strong>
+                          {": "}
+                          {tr("Supervisor", "Encadrant")}
+                          {": "}
+                          <strong>{r.encadrant_name}</strong>
+                          {" · "}
+                          {tr("From", "Du")} <strong>{r.encadrement_start_date}</strong>
+                          {" → "}
+                          {tr("to", "au")} <strong>{r.encadrement_end_date}</strong>
+                        </div>
+                      ) : null}
+
+                      {isInternshipPostDirectorStatus(r.status) &&
+                      r.rapport_status === "accepted" &&
+                      r.attestation_status === "accepted" &&
+                      !r.soutenance_published_at ? (
+                        <div className="si-wait" style={{ marginTop: 10 }}>
+                          {tr(
+                            "Defense schedule (date + jury) will show here after publication by the director or a jury professor.",
+                            "La soutenance (date + jury) s’affichera ici après publication par le directeur ou un professeur du jury.",
+                          )}
+                        </div>
+                      ) : null}
+
+                      {isInternshipPostDirectorStatus(r.status) && r.soutenance_published_at && r.soutenance_date ? (
+                        <div className="si-comment" style={{ marginTop: 10 }}>
+                          <strong>{tr("Defense (soutenance)", "Soutenance")}</strong>
+                          {": "}
+                          <strong>{r.soutenance_date}</strong>
+                          {Array.isArray(r.soutenance_jury) && r.soutenance_jury.length > 0 ? (
+                            <ol style={{ margin: "8px 0 0 18px", padding: 0 }}>
+                              {r.soutenance_jury.map((j, idx) => (
+                                <li key={idx}>{j.name || tr("Professor", "Professeur")}</li>
+                              ))}
+                            </ol>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      {isInternshipPostDirectorStatus(r.status) && r.director_comment ? (
+                        <div className="si-comment">{tr("Director comment", "Commentaire du directeur")}: {r.director_comment}</div>
+                      ) : null}
+                      {r.status === "rejected" && r.director_comment ? (
+                        <div className="si-comment">{tr("Director comment", "Commentaire du directeur")}: {r.director_comment}</div>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

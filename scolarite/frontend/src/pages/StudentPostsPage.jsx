@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
-import { clearAuth, getStoredRole } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./StudentPostsPage.css";
 
@@ -54,7 +54,8 @@ function timeAgoLabel(isoOrMs) {
 export default function StudentPostsPage() {
   const navigate = useNavigate();
   const { t } = useLanguage();
-  const appRole = getStoredRole();
+  const auth = useAuth();
+  const appRole = auth.role;
   const [me, setMe] = useState(null);
   const [feed, setFeed] = useState([]);
   const [body, setBody] = useState("");
@@ -141,13 +142,7 @@ export default function StudentPostsPage() {
         profile_picture_url = p?.profile_picture_url || resolvePublicFileUrl(p?.profile_picture) || null;
       } catch {
         // Fallback to local auth snapshot only if profile endpoint fails.
-        try {
-          const raw = localStorage.getItem("user");
-          const u = raw ? JSON.parse(raw) : null;
-          name = u?.name || "";
-        } catch {
-          /* ignore */
-        }
+        name = auth.user?.name || "";
       }
       setMe({
         id: ctx.student_id ?? ctx.user_id,
@@ -511,11 +506,6 @@ export default function StudentPostsPage() {
     setEditingBody((prev) => `${prev || ""}${emoji}`);
   }
 
-  function addEmojiToStory(emoji) {
-    setStoryBody((prev) => `${prev || ""}${emoji}`);
-    setStoryStyle((prev) => ({ ...prev, text: `${prev.text || ""}${emoji}` }));
-  }
-
   async function openStoryViewer(storyId) {
     try {
       const res = await api.get(`/posts/stories/${storyId}`);
@@ -658,14 +648,8 @@ export default function StudentPostsPage() {
   }
 
   async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
+    await auth.logout();
+    navigate("/login");
   }
 
   return (

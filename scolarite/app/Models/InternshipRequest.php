@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class InternshipRequest extends Model
 {
@@ -25,6 +26,11 @@ class InternshipRequest extends Model
         'director_comment',
         'deadline_rapport',
         'deadline_attestation',
+        'soutenance_date',
+        'soutenance_published_at',
+        'encadrant_professeur_id',
+        'encadrement_start_date',
+        'encadrement_end_date',
         'signed_demande_path',
         'rapport_path',
         'attestation_path',
@@ -44,6 +50,10 @@ class InternshipRequest extends Model
         'end_date' => 'date',
         'deadline_rapport' => 'date',
         'deadline_attestation' => 'date',
+        'soutenance_date' => 'date',
+        'soutenance_published_at' => 'datetime',
+        'encadrement_start_date' => 'date',
+        'encadrement_end_date' => 'date',
         'rapport_reviewed_at' => 'datetime',
         'attestation_reviewed_at' => 'datetime',
         'signed_demande_uploaded_at' => 'datetime',
@@ -69,5 +79,15 @@ class InternshipRequest extends Model
     public function approvedByDirecteurStage(): BelongsTo
     {
         return $this->belongsTo(DirecteurStage::class, 'approved_by_directeur_stage_id');
+    }
+
+    public function soutenanceJuryMembers(): HasMany
+    {
+        return $this->hasMany(InternshipSoutenanceJuryMember::class)->orderBy('position');
+    }
+
+    public function encadrantProfesseur(): BelongsTo
+    {
+        return $this->belongsTo(Professeur::class, 'encadrant_professeur_id');
     }
 }

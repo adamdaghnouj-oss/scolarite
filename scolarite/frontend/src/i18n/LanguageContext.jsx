@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { translations } from "./translations";
 
+/* eslint-disable react-refresh/only-export-components */
 const STORAGE_KEY = "app_language";
 const LanguageContext = createContext(null);
 

@@ -41,6 +41,10 @@ class Student extends Model
         // Document Status
         'payment_proof_status',
         'payment_proof_comment',
+        'certificate_achievement_status',
+        'certificate_achievement_comment',
+        'academic_transcript_status',
+        'academic_transcript_comment',
         'certificate_status',
         'certificate_comment',
         'transcript_status',

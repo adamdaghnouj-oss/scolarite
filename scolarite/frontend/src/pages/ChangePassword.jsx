@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
-import { clearAuth } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./AuthPage.css";
 
 export default function ChangePassword() {
   const navigate = useNavigate();
+  const auth = useAuth();
   const { language } = useLanguage();
   const tr = (en, fr, ar) => (language === "fr" ? fr : language === "ar" ? ar : en);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -28,7 +29,7 @@ export default function ChangePassword() {
         password_confirmation: passwordConfirmation,
       });
       setSuccess(tr("Password changed. Please login again.", "Mot de passe modifié. Veuillez vous reconnecter.", "تم تغيير كلمة المرور. يرجى تسجيل الدخول من جديد."));
-      clearAuth();
+      await auth.logout();
       setTimeout(() => navigate("/login"), 800);
     } catch (err) {
       const d = err.response?.data;

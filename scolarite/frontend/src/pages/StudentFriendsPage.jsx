@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
-import { clearAuth } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./StudentFriendsPage.css";
 
@@ -33,6 +33,7 @@ function resolvePublicFileUrl(pathOrUrl) {
 
 export default function StudentFriendsPage() {
   const navigate = useNavigate();
+  const auth = useAuth();
   const { t } = useLanguage();
   const [tab, setTab] = useState("friends");
   const [query, setQuery] = useState("");
@@ -98,14 +99,8 @@ export default function StudentFriendsPage() {
   }, []);
 
   async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
+    await auth.logout();
+    navigate("/login");
   }
 
   function personBusyKey(person) {

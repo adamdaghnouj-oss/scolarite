@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "./StudentHome.css";
 import { api } from "../api/axios";
-import { clearAuth, getStoredRole, isAuthed } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import { useLanguage } from "../i18n/LanguageContext";
 
 const STUDENT_NOTIF_LAST_SEEN_KEY = "student_notifications_last_seen_at";
@@ -15,6 +15,7 @@ function toMs(v) {
 
 export default function StudentHome() {
   const navigate = useNavigate();
+  const auth = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
   const [quickSearch, setQuickSearch] = useState("");
@@ -49,9 +50,8 @@ export default function StudentHome() {
     return () => io.disconnect();
   }, []);
 
-  // Derive auth from localStorage so refresh/back always reflect correctly.
-  const authed = isAuthed();
-  const userRole = getStoredRole();
+  const userRole = auth.role;
+  const authed = auth.isAuthed;
   const isStudentLoggedIn = authed && userRole === "student";
   const isAdminLoggedIn = authed && userRole === "administrateur";
   const isDirecteurLoggedIn = authed && userRole === "directeur_etudes";
@@ -75,15 +75,9 @@ export default function StudentHome() {
       : t("professorPortal");
 
   async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // Even if API logout fails, clear local auth so UI returns to normal.
-    } finally {
-      clearAuth();
-      setMenuOpen(false);
-      navigate("/", { replace: true });
-    }
+    await auth.logout();
+    setMenuOpen(false);
+    navigate("/", { replace: true });
   }
 
   useEffect(() => {
@@ -181,53 +175,25 @@ export default function StudentHome() {
   // - a26a83ba9fe458088a1992a8c150903c.jpg
   // - 128ae1fd2b81d9b12b3814fa2f160e90.jpg
   // Note: keep imports local so Vite bundles them.
-  // eslint-disable-next-line import/no-unresolved
   const heroImg = new URL("../assets/69000f68a70605dafc274a418ce3abc9.jpg", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
   const aboutImg1 = new URL("../assets/0013e699c6346ce0eeebace3cc732028.jpg", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
   const aboutImg2 = new URL("../assets/a26a83ba9fe458088a1992a8c150903c.jpg", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
   const aboutImg3 = new URL("../assets/128ae1fd2b81d9b12b3814fa2f160e90.jpg", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
   const profileGif = new URL("../assets/profile.gif", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
   const aboutGif = new URL("../assets/about.gif", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
   const contactGif = new URL("../assets/contact.gif", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
   const programGif = new URL("../assets/program - Copie.gif", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
   const msgGif = new URL("../assets/msg.gif", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
   const eventsGif = new URL("../assets/events.gif", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
   const calendarGif = new URL("../assets/calendar.gif", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
-  const documGif = new URL("../assets/docum.gif", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
-  const annGif = new URL("../assets/ann.gif", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
-  const acadGif = new URL("../assets/acad.gif", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
   const gradeGif = new URL("../assets/grade.gif", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
   const amiesGif = new URL("../assets/amies.gif", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
   const emptGif = new URL("../assets/empt.gif", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
   const calexGif = new URL("../assets/calex.gif", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
   const absenceGif = new URL("../assets/absence.gif", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
   const rattGif = new URL("../assets/ratt.gif", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
-  const deliGif = new URL("../assets/deli.gif", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
   const stageGif = new URL("../assets/satge.gif", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
   const attpGif = new URL("../assets/attp.gif", import.meta.url).toString();
-  // eslint-disable-next-line import/no-unresolved
   const postGif = new URL("./post.gif", import.meta.url).toString();
 
   const navLinks = useMemo(() => {

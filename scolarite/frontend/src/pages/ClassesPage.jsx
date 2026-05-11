@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
-import { clearAuth } from "../auth/auth";
 import "./AdminPanel.css";
 import { useLanguage } from "../i18n/LanguageContext";
+import StaffSidebar from "../components/StaffSidebar";
 
 const EMPTY_CLASS_FORM = { name: "", departement: "", annee_scolaire: "", niveau: "" };
 const EMPTY_STUDENT_FORM = { name: "", email: "", password: "", matricule: "" };
@@ -11,7 +10,6 @@ const EMPTY_YEAR_FORM = { annee_scolaire: "" };
 const EMPTY_DEPT_FORM = { departement: "" };
 
 export default function ClassesPage() {
-  const navigate = useNavigate();
   const { language } = useLanguage();
   const tr = (en, fr) => (language === "fr" ? fr : en);
   const [classes, setClasses] = useState([]);
@@ -348,43 +346,9 @@ export default function ClassesPage() {
 
   const sortedYears = Object.keys(byYear).sort((a, b) => b.localeCompare(a));
 
-  async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
-  }
-
   return (
     <div className="admin-wrap">
-      <aside className="admin-sidebar">
-        <div className="admin-brand">
-          <div className="admin-brand-mark" aria-hidden="true">S</div>
-          <div className="admin-brand-text">
-            <div className="admin-brand-title">Scolarité</div>
-            <div className="admin-brand-subtitle">Administration</div>
-          </div>
-        </div>
-        <nav className="admin-nav">
-          <Link className="admin-nav-item" to="/">{tr("Home", "Accueil")}</Link>
-          <Link className="admin-nav-item" to="/admin">{tr("User management", "Gestion des utilisateurs")}</Link>
-          <Link className="admin-nav-item admin-nav-item--active" to="/classes">{tr("Classes", "Classes")}</Link>
-          <Link className="admin-nav-item" to="/accounts">{tr("Accounts", "Comptes")}</Link>
-          <Link className="admin-nav-item" to="/admin/student-contacts">{tr("Student contacts", "Contacts etudiants")}</Link>
-          <Link className="admin-nav-item" to="/admin/grades">{tr("Grades control", "Controle des notes")}</Link>
-          <Link className="admin-nav-item" to="/admin/attendance-certificates">{tr("Attendance certificates", "Attestations de presence")}</Link>
-          <Link className="admin-nav-item" to="/change-password">{tr("Change password", "Changer le mot de passe")}</Link>
-        </nav>
-        <div className="admin-sidebar-footer">
-          <button type="button" className="admin-secondary-btn" style={{ width: "100%" }} onClick={handleLogout}>
-            {tr("Logout", "Deconnexion")}
-          </button>
-        </div>
-      </aside>
+      <StaffSidebar variant="admin" />
 
       <main className="admin-main">
         <header className="admin-topbar">

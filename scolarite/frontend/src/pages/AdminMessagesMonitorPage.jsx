@@ -1,11 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
-import { clearAuth } from "../auth/auth";
 import "./AdminPanel.css";
+import StaffSidebar from "../components/StaffSidebar";
 
 export default function AdminMessagesMonitorPage() {
-  const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -33,17 +31,6 @@ export default function AdminMessagesMonitorPage() {
     load();
   }, []);
 
-  async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
-  }
-
   async function removeMessage(type, id) {
     if (!window.confirm("Delete this message?")) return;
     setError("");
@@ -57,26 +44,7 @@ export default function AdminMessagesMonitorPage() {
 
   return (
     <div className="admin-wrap">
-      <aside className="admin-sidebar">
-        <div className="admin-brand">
-          <div className="admin-brand-mark" aria-hidden="true">S</div>
-          <div className="admin-brand-text">
-            <div className="admin-brand-title">Scolarité</div>
-            <div className="admin-brand-subtitle">Administration</div>
-          </div>
-        </div>
-        <nav className="admin-nav">
-          <Link className="admin-nav-item" to="/">Home</Link>
-          <Link className="admin-nav-item" to="/admin">Management</Link>
-          <Link className="admin-nav-item admin-nav-item--active" to="/admin/messages">Messages monitor</Link>
-          <Link className="admin-nav-item" to="/change-password">Change password</Link>
-        </nav>
-        <div className="admin-sidebar-footer">
-          <button type="button" className="admin-secondary-btn" style={{ width: "100%" }} onClick={handleLogout}>
-            Logout
-          </button>
-        </div>
-      </aside>
+      <StaffSidebar variant="admin" />
 
       <main className="admin-main">
         <header className="admin-topbar">

@@ -1,8 +1,10 @@
 import "./Dashboard.css";
 import { useLanguage } from "../i18n/LanguageContext";
+import { useAuth } from "../auth/useAuth";
 
 export default function Dashboard() {
-  const user = JSON.parse(localStorage.getItem("user"));
+  const auth = useAuth();
+  const user = auth.user;
   const { language } = useLanguage();
   const tr = (en, fr, ar) => (language === "fr" ? fr : language === "ar" ? ar : en);
 

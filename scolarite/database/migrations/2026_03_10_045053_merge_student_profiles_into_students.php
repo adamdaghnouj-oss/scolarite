@@ -59,52 +59,57 @@ return new class extends Migration
             if (!Schema::hasColumn('students', 'parents_relationship')) $table->string('parents_relationship')->nullable();
         });
 
-        // Copy data from student_profiles to students
-        DB::statement('
-            UPDATE students s
-            JOIN student_profiles sp ON s.id = sp.student_id
-            SET
-                s.phone = sp.phone,
-                s.address = sp.address,
-                s.postal_code = sp.postal_code,
-                s.city = sp.city,
-                s.country = sp.country,
-                s.date_of_birth = sp.date_of_birth,
-                s.place_of_birth = sp.place_of_birth,
-                s.gender = sp.gender,
-                s.profile_picture = sp.profile_picture,
-                s.admission_status = sp.admission_status,
-                s.payment_proof = sp.payment_proof,
-                s.certificate_achievement = sp.certificate_achievement,
-                s.academic_transcript = sp.academic_transcript,
-                s.father_first_name = sp.father_first_name,
-                s.father_last_name = sp.father_last_name,
-                s.father_phone = sp.father_phone,
-                s.father_email = sp.father_email,
-                s.father_address = sp.father_address,
-                s.father_postal_code = sp.father_postal_code,
-                s.father_city = sp.father_city,
-                s.father_country = sp.father_country,
-                s.father_date_of_birth = sp.father_date_of_birth,
-                s.father_job = sp.father_job,
-                s.father_place_of_job = sp.father_place_of_job,
-                s.father_condition = sp.father_condition,
-                s.father_date_of_death = sp.father_date_of_death,
-                s.mother_first_name = sp.mother_first_name,
-                s.mother_last_name = sp.mother_last_name,
-                s.mother_phone = sp.mother_phone,
-                s.mother_email = sp.mother_email,
-                s.mother_address = sp.mother_address,
-                s.mother_postal_code = sp.mother_postal_code,
-                s.mother_city = sp.mother_city,
-                s.mother_country = sp.mother_country,
-                s.mother_date_of_birth = sp.mother_date_of_birth,
-                s.mother_job = sp.mother_job,
-                s.mother_place_of_job = sp.mother_place_of_job,
-                s.mother_condition = sp.mother_condition,
-                s.mother_date_of_death = sp.mother_date_of_death,
-                s.parents_relationship = sp.parents_relationship
-        ');
+        // Copy data from student_profiles to students using portable queries.
+        DB::table('student_profiles')
+            ->orderBy('id')
+            ->chunkById(100, function ($profiles) {
+                foreach ($profiles as $profile) {
+                    DB::table('students')
+                        ->where('id', $profile->student_id)
+                        ->update([
+                            'phone' => $profile->phone,
+                            'address' => $profile->address,
+                            'postal_code' => $profile->postal_code,
+                            'city' => $profile->city,
+                            'country' => $profile->country,
+                            'date_of_birth' => $profile->date_of_birth,
+                            'place_of_birth' => $profile->place_of_birth,
+                            'gender' => $profile->gender,
+                            'profile_picture' => $profile->profile_picture,
+                            'admission_status' => $profile->admission_status,
+                            'payment_proof' => $profile->payment_proof,
+                            'certificate_achievement' => $profile->certificate_achievement,
+                            'academic_transcript' => $profile->academic_transcript,
+                            'father_first_name' => $profile->father_first_name,
+                            'father_last_name' => $profile->father_last_name,
+                            'father_phone' => $profile->father_phone,
+                            'father_email' => $profile->father_email,
+                            'father_address' => $profile->father_address,
+                            'father_postal_code' => $profile->father_postal_code,
+                            'father_city' => $profile->father_city,
+                            'father_country' => $profile->father_country,
+                            'father_date_of_birth' => $profile->father_date_of_birth,
+                            'father_job' => $profile->father_job,
+                            'father_place_of_job' => $profile->father_place_of_job,
+                            'father_condition' => $profile->father_condition,
+                            'father_date_of_death' => $profile->father_date_of_death,
+                            'mother_first_name' => $profile->mother_first_name,
+                            'mother_last_name' => $profile->mother_last_name,
+                            'mother_phone' => $profile->mother_phone,
+                            'mother_email' => $profile->mother_email,
+                            'mother_address' => $profile->mother_address,
+                            'mother_postal_code' => $profile->mother_postal_code,
+                            'mother_city' => $profile->mother_city,
+                            'mother_country' => $profile->mother_country,
+                            'mother_date_of_birth' => $profile->mother_date_of_birth,
+                            'mother_job' => $profile->mother_job,
+                            'mother_place_of_job' => $profile->mother_place_of_job,
+                            'mother_condition' => $profile->mother_condition,
+                            'mother_date_of_death' => $profile->mother_date_of_death,
+                            'parents_relationship' => $profile->parents_relationship,
+                        ]);
+                }
+            });
 
         // Drop foreign key from student_profiles before dropping table
         Schema::table('student_profiles', function ($table) {

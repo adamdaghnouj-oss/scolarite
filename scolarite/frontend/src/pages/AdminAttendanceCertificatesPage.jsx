@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
-import { clearAuth } from "../auth/auth";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./AdminPanel.css";
+import StaffSidebar from "../components/StaffSidebar";
 
 function formatDate(iso) {
   if (!iso) return "";
@@ -54,7 +53,6 @@ async function openPdfBlob(blob, filename = "certificate.pdf") {
 }
 
 export default function AdminAttendanceCertificatesPage() {
-  const navigate = useNavigate();
   const { t, language } = useLanguage();
   const tr = (en, fr, ar) => (language === "fr" ? fr : language === "ar" ? ar : en);
 
@@ -85,17 +83,6 @@ export default function AdminAttendanceCertificatesPage() {
   const pendingRows = useMemo(() => rows.filter((r) => r.status === "pending").length, [rows]);
   const rejectedRows = useMemo(() => rows.filter((r) => r.status === "rejected").length, [rows]);
 
-  async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
-  }
-
   async function downloadPdf(requestId, lang) {
     setWorkingId(requestId);
     setError("");
@@ -114,30 +101,7 @@ export default function AdminAttendanceCertificatesPage() {
 
   return (
     <div className="admin-wrap">
-      <aside className="admin-sidebar">
-        <div className="admin-brand">
-          <div className="admin-brand-mark" aria-hidden="true">S</div>
-          <div className="admin-brand-text">
-            <div className="admin-brand-title">Scolarite</div>
-            <div className="admin-brand-subtitle">Administration</div>
-          </div>
-        </div>
-        <nav className="admin-nav">
-          <Link className="admin-nav-item" to="/">{tr("Home", "Accueil", "الرئيسية")}</Link>
-          <Link className="admin-nav-item" to="/admin">{tr("User management", "Gestion des utilisateurs", "إدارة المستخدمين")}</Link>
-          <Link className="admin-nav-item" to="/classes">{tr("Classes", "Classes", "الأقسام")}</Link>
-          <Link className="admin-nav-item" to="/accounts">{tr("Accounts", "Comptes", "الحسابات")}</Link>
-          <Link className="admin-nav-item" to="/admin/student-contacts">{tr("Student contacts", "Contacts etudiants", "رسائل الطلبة")}</Link>
-          <Link className="admin-nav-item" to="/admin/grades">{tr("Grades control", "Controle des notes", "إدارة العلامات")}</Link>
-          <Link className="admin-nav-item admin-nav-item--active" to="/admin/attendance-certificates">{t("menuAttendanceCert")}</Link>
-          <Link className="admin-nav-item" to="/change-password">{tr("Change password", "Changer le mot de passe", "تغيير كلمة المرور")}</Link>
-        </nav>
-        <div className="admin-sidebar-footer">
-          <button type="button" className="admin-secondary-btn" style={{ width: "100%" }} onClick={handleLogout}>
-            {tr("Logout", "Deconnexion", "تسجيل الخروج")}
-          </button>
-        </div>
-      </aside>
+      <StaffSidebar variant="admin" />
 
       <main className="admin-main">
         <header className="admin-topbar">

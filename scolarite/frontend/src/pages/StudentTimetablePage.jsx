@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
-import { clearAuth } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./StudentPlansPage.css";
 import "./StudentAbsencesPage.css";
@@ -21,14 +21,15 @@ function formatDateOnly(iso) {
 
 export default function StudentTimetablePage() {
   const navigate = useNavigate();
+  const auth = useAuth();
   const { t, language } = useLanguage();
-  const tr = (en, fr, ar) => (language === "fr" ? fr : language === "ar" ? ar : en);
+  const tr = useCallback((en, fr, ar) => (language === "fr" ? fr : language === "ar" ? ar : en), [language]);
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -40,21 +41,15 @@ export default function StudentTimetablePage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [tr]);
 
   useEffect(() => {
     loadAll();
-  }, []);
+  }, [loadAll]);
 
   async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
+    await auth.logout();
+    navigate("/login");
   }
 
   const grouped = useMemo(() => {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/axios";
-import { clearAuth } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./StudentFriendProfilePage.css";
 
@@ -34,13 +34,13 @@ function resolvePublicFileUrl(pathOrUrl) {
 export default function UserSocialProfilePage() {
   const { userId } = useParams();
   const navigate = useNavigate();
+  const auth = useAuth();
   const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [profilePosts, setProfilePosts] = useState([]);
   const [commentDrafts, setCommentDrafts] = useState({});
-  const [replyDrafts, setReplyDrafts] = useState({});
 
   async function loadProfile() {
     setLoading(true);
@@ -58,14 +58,8 @@ export default function UserSocialProfilePage() {
   }, [userId]);
 
   async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
+    await auth.logout();
+    navigate("/login");
   }
 
   async function sendInvite() {

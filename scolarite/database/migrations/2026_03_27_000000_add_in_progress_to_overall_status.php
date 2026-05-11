@@ -10,8 +10,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Modify the overall_status enum to include 'in_progress'
-        DB::statement("ALTER TABLE students MODIFY COLUMN overall_status ENUM('pending', 'in_progress', 'accepted', 'rejected') DEFAULT 'pending'");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE students MODIFY COLUMN overall_status ENUM('pending', 'in_progress', 'accepted', 'rejected') DEFAULT 'pending'");
+        }
     }
 
     /**
@@ -19,7 +20,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Revert the overall_status enum to original values
-        DB::statement("ALTER TABLE students MODIFY COLUMN overall_status ENUM('pending', 'accepted', 'rejected') DEFAULT 'pending'");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE students MODIFY COLUMN overall_status ENUM('pending', 'accepted', 'rejected') DEFAULT 'pending'");
+        }
     }
 };

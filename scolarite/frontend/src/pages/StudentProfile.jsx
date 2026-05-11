@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
-import { clearAuth, getStoredRole } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import "./StudentProfile.css";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -193,7 +193,8 @@ const EMPTY_FORM = {
 export default function StudentProfile() {
   const navigate = useNavigate();
   const { t } = useLanguage();
-  const isProf = getStoredRole() === "professeur";
+  const auth = useAuth();
+  const isProf = auth.role === "professeur";
   const [student, setStudent] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [docs, setDocs] = useState({
@@ -359,8 +360,8 @@ export default function StudentProfile() {
     }
   }
 
-  function handleLogout() {
-    clearAuth();
+  async function handleLogout() {
+    await auth.logout();
     navigate("/login");
   }
 

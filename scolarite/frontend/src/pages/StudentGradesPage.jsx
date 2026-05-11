@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
-import { clearAuth } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./StudentPlansPage.css";
 import "./StudentGradesPage.css";
 
 export default function StudentGradesPage() {
   const navigate = useNavigate();
+  const auth = useAuth();
   const { language, t } = useLanguage();
-  const tr = (en, fr) => (language === "fr" ? fr : en);
+  const tr = useCallback((en, fr) => (language === "fr" ? fr : en), [language]);
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -35,7 +36,7 @@ export default function StudentGradesPage() {
     } finally {
       setLoading(false);
     }
-  }, [language]);
+  }, [tr]);
 
   const loadDoubleCorrections = useCallback(async () => {
     setDcLoading(true);
@@ -49,7 +50,7 @@ export default function StudentGradesPage() {
     } finally {
       setDcLoading(false);
     }
-  }, [language]);
+  }, [tr]);
 
   useEffect(() => {
     load();
@@ -57,14 +58,8 @@ export default function StudentGradesPage() {
   }, [load, loadDoubleCorrections]);
 
   async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
+    await auth.logout();
+    navigate("/login");
   }
 
   const published = data?.published === true;

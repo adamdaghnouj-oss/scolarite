@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
-import { clearAuth } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./StudentPlansPage.css";
 import "./StudentAbsencesPage.css";
@@ -9,7 +9,8 @@ import "./StudentAbsencesPage.css";
 export default function StudentAbsencesPage() {
   const { t, language } = useLanguage();
   const navigate = useNavigate();
-  const tr = (en, fr) => (language === "fr" ? fr : en);
+  const auth = useAuth();
+  const tr = useCallback((en, fr) => (language === "fr" ? fr : en), [language]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -35,17 +36,11 @@ export default function StudentAbsencesPage() {
     return () => {
       cancelled = true;
     };
-  }, [language]);
+  }, [tr]);
 
   async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
+    await auth.logout();
+    navigate("/login");
   }
 
   const paniers = data?.paniers ?? [];

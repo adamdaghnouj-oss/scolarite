@@ -495,6 +495,14 @@ class UserManagementController extends Controller
             $updateData[$commentField] = $comment ?? '';
         }
 
+        if ($category === 'certificate_achievement') {
+            $updateData['certificate_status'] = $status;
+            $updateData['certificate_comment'] = $comment ?? '';
+        } elseif ($category === 'academic_transcript') {
+            $updateData['transcript_status'] = $status;
+            $updateData['transcript_comment'] = $comment ?? '';
+        }
+
         // If overall status is being updated to accepted, update all category statuses
         if ($category === 'overall' && $status === 'accepted') {
             $updateData = array_merge($updateData, [
@@ -503,6 +511,8 @@ class UserManagementController extends Controller
                 'payment_proof_status' => 'accepted',
                 'certificate_achievement_status' => 'accepted',
                 'academic_transcript_status' => 'accepted',
+                'certificate_status' => 'accepted',
+                'transcript_status' => 'accepted',
                 'father_info_status' => 'accepted',
                 'mother_info_status' => 'accepted',
                 'parents_relationship_status' => 'accepted',

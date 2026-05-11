@@ -23,19 +23,34 @@ return new class extends Migration
         });
 
         if (Schema::hasTable('friend_invitations')) {
-            DB::statement('
-                INSERT IGNORE INTO user_invitations (from_user_id, to_user_id, status, accepted_at, sender_seen_at, created_at, updated_at)
-                SELECT s1.user_id, s2.user_id,
-                    CASE fi.status
-                        WHEN "accepted" THEN "accepted"
-                        WHEN "pending" THEN "pending"
-                        ELSE "rejected"
-                    END,
-                    fi.accepted_at, fi.sender_seen_at, fi.created_at, fi.updated_at
-                FROM friend_invitations fi
-                INNER JOIN students s1 ON s1.id = fi.sender_student_id
-                INNER JOIN students s2 ON s2.id = fi.receiver_student_id
-            ');
+            DB::table('friend_invitations as fi')
+                ->join('students as s1', 's1.id', '=', 'fi.sender_student_id')
+                ->join('students as s2', 's2.id', '=', 'fi.receiver_student_id')
+                ->select([
+                    's1.user_id as from_user_id',
+                    's2.user_id as to_user_id',
+                    'fi.status',
+                    'fi.accepted_at',
+                    'fi.sender_seen_at',
+                    'fi.created_at',
+                    'fi.updated_at',
+                ])
+                ->orderBy('fi.id')
+                ->chunk(100, function ($rows) {
+                    $payload = $rows->map(function ($row) {
+                        return [
+                            'from_user_id' => $row->from_user_id,
+                            'to_user_id' => $row->to_user_id,
+                            'status' => in_array($row->status, ['accepted', 'pending'], true) ? $row->status : 'rejected',
+                            'accepted_at' => $row->accepted_at,
+                            'sender_seen_at' => $row->sender_seen_at,
+                            'created_at' => $row->created_at,
+                            'updated_at' => $row->updated_at,
+                        ];
+                    })->all();
+
+                    DB::table('user_invitations')->insertOrIgnore($payload);
+                });
         }
     }
 

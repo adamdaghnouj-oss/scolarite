@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/axios";
-import { clearAuth } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./StudentFriendProfilePage.css";
 
@@ -34,6 +34,7 @@ function resolvePublicFileUrl(pathOrUrl) {
 export default function StudentFriendProfilePage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const auth = useAuth();
   const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
@@ -68,14 +69,8 @@ export default function StudentFriendProfilePage() {
   }, [id, navigate]);
 
   async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
+    await auth.logout();
+    navigate("/login");
   }
 
   async function sendInvite() {

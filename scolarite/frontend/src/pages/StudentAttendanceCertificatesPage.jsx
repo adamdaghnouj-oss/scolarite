@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
-import { clearAuth } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./StudentPlansPage.css";
 import "./StudentAbsencesPage.css";
@@ -41,8 +41,9 @@ function StatusPill({ status, t }) {
 
 export default function StudentAttendanceCertificatesPage() {
   const navigate = useNavigate();
+  const auth = useAuth();
   const { t, language } = useLanguage();
-  const tr = (en, fr, ar) => (language === "fr" ? fr : language === "ar" ? ar : en);
+  const tr = useCallback((en, fr, ar) => (language === "fr" ? fr : language === "ar" ? ar : en), [language]);
 
   const [rows, setRows] = useState([]);
   const [profs, setProfs] = useState([]);
@@ -56,7 +57,7 @@ export default function StudentAttendanceCertificatesPage() {
   const [copies, setCopies] = useState(1);
   const [reqLang, setReqLang] = useState(language === "ar" ? "ar" : language === "en" ? "en" : "fr");
 
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -72,23 +73,17 @@ export default function StudentAttendanceCertificatesPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [tr]);
 
   useEffect(() => {
     loadAll();
-  }, []);
+  }, [loadAll]);
 
   const profOptions = useMemo(() => profs.map((p) => ({ id: String(p.id), name: p.name || `#${p.id}` })), [profs]);
 
   async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
+    await auth.logout();
+    navigate("/login");
   }
 
   async function submitRequest(e) {

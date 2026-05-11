@@ -1,20 +1,11 @@
 import { Navigate } from "react-router-dom";
-import { isAuthed } from "../auth/auth";
-
-function getUserRole() {
-  try {
-    const raw = localStorage.getItem("user");
-    const user = raw ? JSON.parse(raw) : null;
-    return user?.role || null;
-  } catch {
-    return null;
-  }
-}
+import { useAuth } from "../auth/useAuth";
 
 export default function RoleProtectedRoute({ children, allow = [] }) {
-  if (!isAuthed()) return <Navigate to="/login" replace />;
-  const role = getUserRole();
-  if (Array.isArray(allow) && allow.length > 0 && !allow.includes(role)) return <Navigate to="/" replace />;
+  const auth = useAuth();
+  if (auth.loading) return null;
+  if (!auth.isAuthed) return <Navigate to="/login" replace />;
+  if (Array.isArray(allow) && allow.length > 0 && !allow.includes(auth.role)) return <Navigate to="/" replace />;
   return children;
 }
 

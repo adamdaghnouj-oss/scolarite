@@ -12,6 +12,7 @@ use App\Models\Student;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rules\Password as PasswordRule;
@@ -26,8 +27,8 @@ class AuthController extends Controller
         $rules = [
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8|confirmed',
-            'role' => 'required|in:student,professeur,administrateur,directeur_etudes,directeur_stage',
+            'password' => ['required', 'string', 'confirmed', PasswordRule::min(8)],
+            'role' => 'required|in:student',
         ];
 
         $role = $request->role;
@@ -157,7 +158,14 @@ class AuthController extends Controller
             ], 422);
         }
 
-        // Generate token after verification
+        // Preferred SPA auth: start a session (HttpOnly cookie via Sanctum stateful requests)
+        Auth::guard('web')->login($user);
+        if ($request->hasSession()) {
+            $request->session()->regenerate();
+        }
+
+        // Compatibility window: keep issuing a token for legacy clients.
+        // New SPA should ignore this and rely on session cookies.
         $token = $user->createToken('auth-token')->plainTextToken;
 
         return response()->json([
@@ -304,7 +312,18 @@ class AuthController extends Controller
      */
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        // If authenticated via token, revoke it.
+        if ($request->user() && method_exists($request->user(), 'currentAccessToken')) {
+            optional($request->user()->currentAccessToken())->delete();
+        }
+
+        // If authenticated via session, invalidate it.
+        Auth::guard('web')->logout();
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
+
         return response()->json(['message' => 'Logged out.']);
     }
 

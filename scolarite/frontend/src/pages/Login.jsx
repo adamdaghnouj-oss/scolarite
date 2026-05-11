@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
-import { getStoredRole, isAuthed, setAuth } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import "./AuthPage.css";
 import authImg from "../assets/0ee83043fa17432d636e62339bf14c06.gif";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -19,15 +19,16 @@ export default function Login() {
   const navigate = useNavigate();
   const liveTime = useLiveTime();
   const { t } = useLanguage();
+  const auth = useAuth();
 
   useEffect(() => {
-    if (!isAuthed()) return;
-    const role = getStoredRole();
+    if (auth.loading || !auth.isAuthed) return;
+    const role = auth.role;
     if (role === "administrateur") navigate("/admin", { replace: true });
     else if (role === "directeur_etudes") navigate("/directeur/classes", { replace: true });
     else if (role === "directeur_stage") navigate("/directeur-stage/internships", { replace: true });
     else if (role === "professeur") navigate("/professeur", { replace: true });
-  }, [navigate]);
+  }, [auth.loading, auth.isAuthed, auth.role, navigate]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -74,9 +75,8 @@ export default function Login() {
     setVerifying(true);
     setError("");
     try {
-      const res = await api.post("/verify-otp", { email, code: otpCode });
-      setAuth(res.data.token, res.data.user);
-      const role = res.data.user?.role;
+      const res = await auth.verifyOtp({ email, code: otpCode });
+      const role = res.user?.role;
       if (role === "administrateur" || role === "directeur_etudes" || role === "directeur_stage") {
         navigate(
           role === "directeur_etudes"
@@ -108,28 +108,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const res = await api.post("/login", {
-        email,
-        password,
-      });
-
-      setAuth(res.data.token, res.data.user);
-      const role = res.data.user?.role;
-      if (role === "administrateur" || role === "directeur_etudes" || role === "directeur_stage") {
-        navigate(
-          role === "directeur_etudes"
-            ? "/directeur/classes"
-            : role === "directeur_stage"
-              ? "/directeur-stage/internships"
-              : "/admin"
-        );
-      } else if (role === "professeur") {
-        navigate("/professeur");
-      } else if (role === "student") {
-        await routeAfterStudentLogin();
-      } else {
-        navigate("/");
-      }
+      await auth.login({ email, password });
     } catch (err) {
       const data = err.response?.data;
       

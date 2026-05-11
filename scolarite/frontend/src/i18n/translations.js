@@ -538,9 +538,6 @@ export const translations = {
     menuRetakes: "الاستدراك",
     menuDeliberation: "المداولات",
     menuInternships: "التربصات",
-    menuSchedule: "جدول التوقيت",
-    menuExamCalendar: "رزنامة الامتحانات",
-
     acTitleStudent: "طلبات شهادة الحضور",
     acAddRequest: "إيداع طلب",
     acProfessor1: "الأستاذ 1",

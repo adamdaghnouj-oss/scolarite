@@ -1,13 +1,13 @@
 import { useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api } from "../api/axios";
-import { clearAuth } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import { useLanguage } from "../i18n/LanguageContext";
 import heroImage from "../assets/0013e699c6346ce0eeebace3cc732028.jpg";
 import "./StudentAboutPage.css";
 
 export default function StudentAboutPage() {
   const navigate = useNavigate();
+  const auth = useAuth();
   const { t } = useLanguage();
 
   const scenes = useMemo(
@@ -49,14 +49,8 @@ export default function StudentAboutPage() {
   );
 
   async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
+    await auth.logout();
+    navigate("/login");
   }
 
   return (

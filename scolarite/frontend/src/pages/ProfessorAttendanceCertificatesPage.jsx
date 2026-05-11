@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { api } from "../api/axios";
-import { clearAuth } from "../auth/auth";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./AdminPanel.css";
+import StaffSidebar from "../components/StaffSidebar";
 
 function formatDate(iso) {
   if (!iso) return "";
@@ -38,7 +37,6 @@ function StatusPill({ status, t }) {
 }
 
 export default function ProfessorAttendanceCertificatesPage() {
-  const navigate = useNavigate();
   const { t, language } = useLanguage();
   const tr = (en, fr, ar) => (language === "fr" ? fr : language === "ar" ? ar : en);
 
@@ -97,78 +95,9 @@ export default function ProfessorAttendanceCertificatesPage() {
     }
   }
 
-  async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
-  }
-
   return (
     <div className="admin-wrap">
-      <aside className="admin-sidebar">
-        <div className="admin-brand">
-          <div className="admin-brand-mark" aria-hidden="true">S</div>
-          <div className="admin-brand-text">
-            <div className="admin-brand-title">Scolarite</div>
-            <div className="admin-brand-subtitle">{tr("Professor", "Professeur", "أستاذ")}</div>
-          </div>
-        </div>
-        <nav className="admin-nav">
-          <p className="admin-nav-section-label">{tr("Menu", "Menu", "القائمة")}</p>
-          <Link className="admin-nav-item" to="/">
-            {tr("Home", "Accueil", "الرئيسية")}
-          </Link>
-
-          <p className="admin-nav-section-label">{tr("Teaching", "Enseignement", "التدريس")}</p>
-          <Link className="admin-nav-item" to="/professeur">
-            {tr("My classes", "Mes classes", "أقسامى")}
-          </Link>
-          <Link className="admin-nav-item" to="/professeur/notes">
-            {tr("Grades", "Notes", "العلامات")}
-          </Link>
-          <Link className="admin-nav-item" to="/professeur/absences">
-            {tr("Absences", "Absences", "الغيابات")}
-          </Link>
-          <Link className="admin-nav-item admin-nav-item--active" to="/professeur/attendance-certificates">
-            {t("menuAttendanceCert")}
-          </Link>
-          <Link className="admin-nav-item" to="/professeur/timetable">
-            {tr("Timetable", "Emploi du temps", "جدول التوقيت")}
-          </Link>
-          <Link className="admin-nav-item" to="/professeur/exam-surveillance">
-            {tr("Exam surveillance", "Surveillance examens", "مراقبة الامتحانات")}
-          </Link>
-
-          <p className="admin-nav-section-label">{tr("Campus", "Campus", "الحرم")}</p>
-          <Link className="admin-nav-item" to="/student/posts">
-            {tr("Posts", "Publications", "منشورات")}
-          </Link>
-          <Link className="admin-nav-item" to="/student/friends">
-            {tr("Friends", "Reseau", "الأصدقاء")}
-          </Link>
-          <Link className="admin-nav-item" to="/messages/panier">
-            {t("menuPanierMessages")}
-          </Link>
-
-          <p className="admin-nav-section-label">{tr("Account", "Compte", "الحساب")}</p>
-          <Link className="admin-nav-item" to="/profile">
-            {tr("Profile", "Profil", "الملف الشخصي")}
-          </Link>
-          <Link className="admin-nav-item" to="/change-password">
-            {tr("Change password", "Changer le mot de passe", "تغيير كلمة المرور")}
-          </Link>
-        </nav>
-        <div className="admin-sidebar-footer">
-          <button type="button" className="admin-secondary-btn" style={{ width: "100%" }} onClick={handleLogout}>
-            {t("logout")}
-          </button>
-        </div>
-      </aside>
+      <StaffSidebar variant="professeur" />
 
       <main className="admin-main admin-main--professor">
         <header className="admin-topbar">
@@ -243,4 +172,3 @@ export default function ProfessorAttendanceCertificatesPage() {
     </div>
   );
 }
-

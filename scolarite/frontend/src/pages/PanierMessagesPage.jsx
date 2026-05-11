@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/axios";
-import { getStoredRole } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import MessagingNavRail from "../components/MessagingNavRail";
 import MessageImageLightbox from "../components/MessageImageLightbox";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -8,7 +8,8 @@ import "./StudentMessagesPage.css";
 
 export default function PanierMessagesPage() {
   const { t } = useLanguage();
-  const role = getStoredRole();
+  const auth = useAuth();
+  const role = auth.role;
   const [conversations, setConversations] = useState([]);
   const [selectedThreadId, setSelectedThreadId] = useState(null);
   const [threadMeta, setThreadMeta] = useState(null);
@@ -30,35 +31,25 @@ export default function PanierMessagesPage() {
   const mediaRecorderRef = useRef(null);
   const streamRef = useRef(null);
   const chunksRef = useRef([]);
-  const myUserId = useMemo(() => {
-    try {
-      const raw = localStorage.getItem("user");
-      const u = raw ? JSON.parse(raw) : null;
-      return u?.id ?? null;
-    } catch {
-      return null;
-    }
-  }, []);
+  const myUserId = useMemo(() => auth.user?.id ?? null, [auth.user?.id]);
 
-  async function loadConversations(silent = false) {
+  const loadConversations = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     setError("");
     try {
       const res = await api.get("/messages/panier/conversations");
       const list = Array.isArray(res.data) ? res.data : [];
       setConversations(list);
-      if (!selectedThreadId && list[0]?.thread_id) {
-        setSelectedThreadId(list[0].thread_id);
-      }
+      setSelectedThreadId((prev) => prev ?? list[0]?.thread_id ?? null);
     } catch {
       setError(t("pmPanierLoadError"));
       setConversations([]);
     } finally {
       if (!silent) setLoading(false);
     }
-  }
+  }, [t]);
 
-  async function loadThread(threadId) {
+  const loadThread = useCallback(async (threadId) => {
     if (!threadId) return;
     try {
       const res = await api.get(`/messages/panier/threads/${threadId}`);
@@ -69,12 +60,11 @@ export default function PanierMessagesPage() {
       setMessages([]);
       setThreadMeta(null);
     }
-  }
+  }, []);
 
   useEffect(() => {
     loadConversations();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadConversations]);
 
   useEffect(() => {
     document.body.classList.add("sm-page-active");
@@ -83,16 +73,16 @@ export default function PanierMessagesPage() {
 
   useEffect(() => {
     if (selectedThreadId) loadThread(selectedThreadId);
-  }, [selectedThreadId]);
+  }, [selectedThreadId, loadThread]);
 
   useEffect(() => {
+    if (!selectedThreadId) return undefined;
     const id = setInterval(() => {
       loadConversations(true);
-      if (selectedThreadId) loadThread(selectedThreadId);
+      loadThread(selectedThreadId);
     }, 5000);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedThreadId]);
+  }, [selectedThreadId, loadConversations, loadThread]);
 
   async function handleSend(e) {
     e.preventDefault();
@@ -217,10 +207,10 @@ export default function PanierMessagesPage() {
     [messages]
   );
 
-  function openMessageImageLightbox(messageId) {
+  const openMessageImageLightbox = useCallback((messageId) => {
     const i = messageImageGallery.findIndex((g) => g.id === messageId);
     if (i >= 0) setImageLightboxIndex(i);
-  }
+  }, [messageImageGallery]);
 
   return (
     <div className="sm-page">

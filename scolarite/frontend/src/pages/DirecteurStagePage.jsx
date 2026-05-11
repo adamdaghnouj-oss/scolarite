@@ -1,18 +1,25 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
-import { clearAuth } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./AdminPanel.css";
 
+function isInternshipDirectorPostApproval(status) {
+  return ["approved", "documents_pending_review", "documents_accepted"].includes(status);
+}
+
 export default function DirecteurStagePage() {
   const navigate = useNavigate();
+  const auth = useAuth();
   const { language, t } = useLanguage();
   const tr = (en, fr, ar) => (language === "fr" ? fr : language === "ar" ? ar : en);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [decision, setDecision] = useState({});
+  /** When expanded, holds draft fields for approved internships (PATCH approved-meta). */
+  const [approvedEditDraft, setApprovedEditDraft] = useState({});
 
   async function load() {
     setLoading(true);
@@ -32,14 +39,8 @@ export default function DirecteurStagePage() {
   }, []);
 
   async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
+    await auth.logout();
+    navigate("/login");
   }
 
   async function decide(rowId, status) {
@@ -70,15 +71,56 @@ export default function DirecteurStagePage() {
   }
 
   async function decideDocument(rowId, kind, decisionValue) {
+    let comment = "";
+    if (decisionValue === "rejected") {
+      comment = window.prompt(tr("Reason / comment for the student (optional)", "Motif / commentaire pour l'étudiant (optionnel)", "سبب أو تعليق للطالب (اختياري)")) ?? "";
+    }
     setError("");
     try {
       const res = await api.post(`/directeur-stage/internships/${rowId}/document-decision`, {
         kind,
         decision: decisionValue,
+        comment: comment.trim() || undefined,
       });
       setRows((prev) => prev.map((r) => (r.id === rowId ? res.data : r)));
     } catch (e) {
       setError(e?.response?.data?.message || "Document decision failed.");
+    }
+  }
+
+  function openApprovedEdit(row) {
+    setApprovedEditDraft((prev) => ({
+      ...prev,
+      [row.id]: {
+        director_comment: row.director_comment || "",
+        deadline_rapport: row.deadline_rapport || "",
+        deadline_attestation: row.deadline_attestation || "",
+      },
+    }));
+  }
+
+  function closeApprovedEdit(rowId) {
+    setApprovedEditDraft((prev) => {
+      const next = { ...prev };
+      delete next[rowId];
+      return next;
+    });
+  }
+
+  async function saveApprovedMeta(rowId) {
+    const d = approvedEditDraft[rowId];
+    if (!d) return;
+    setError("");
+    try {
+      const res = await api.patch(`/directeur-stage/internships/${rowId}/approved-meta`, {
+        director_comment: d.director_comment || null,
+        deadline_rapport: d.deadline_rapport || null,
+        deadline_attestation: d.deadline_attestation || null,
+      });
+      setRows((prev) => prev.map((r) => (r.id === rowId ? res.data : r)));
+      closeApprovedEdit(rowId);
+    } catch (e) {
+      setError(e?.response?.data?.message || tr("Save failed.", "Enregistrement échoué.", "فشل الحفظ."));
     }
   }
 
@@ -109,6 +151,8 @@ export default function DirecteurStagePage() {
         <nav className="admin-nav">
           <Link className="admin-nav-item" to="/">{t("navHome")}</Link>
           <Link className="admin-nav-item admin-nav-item--active" to="/directeur-stage/internships">{t("menuInternships")}</Link>
+          <Link className="admin-nav-item" to="/directeur-stage/soutenance">{tr("Soutenance & jury", "Soutenance & jury", "المناقشة واللجنة")}</Link>
+          <Link className="admin-nav-item" to="/directeur-stage/encadrement-pfe">{tr("PFE supervision", "Encadrement PFE", "إشراف PFE")}</Link>
           <Link className="admin-nav-item" to="/change-password">{t("changePassword")}</Link>
         </nav>
         <div className="admin-sidebar-footer">
@@ -122,7 +166,7 @@ export default function DirecteurStagePage() {
         <header className="admin-topbar">
           <div>
             <h1 className="admin-title">{tr("Internship Director", "Directeur des Stages", "مدير التربصات")}</h1>
-            <p className="admin-subtitle">{tr("Validate internship requests and set report/attestation deadlines.", "Valider les demandes de stage et fixer les deadlines (rapport/attestation).", "التحقق من طلبات التربص وتحديد آجال التقرير والشهادة.")}</p>
+            <p className="admin-subtitle">{tr("Validate internship requests and set report/attestation deadlines. Use “Soutenance & jury” once documents are accepted.", "Valider les demandes et fixer les deadlines (rapport/attestation). Utilisez « Soutenance & jury » une fois les documents acceptés.", "التحقق من الطلبات وآجال التقرير/الشهادة. استخدم « المناقشة واللجنة » بعد قبول الوثائق.")}</p>
           </div>
           <button className="admin-primary-btn" onClick={load}>{tr("Refresh", "Rafraîchir", "تحديث")}</button>
         </header>
@@ -173,8 +217,12 @@ export default function DirecteurStagePage() {
                               <button type="button" className="admin-secondary-btn" onClick={() => viewFile(r.id, "rapport")}>{t("view")}</button>
                               <span style={{ color: "#475569", fontSize: 12 }}>{r.rapport_name || "rapport"}</span>
                               <span style={{ color: "#0f766e", fontSize: 12 }}>{r.rapport_status || "pending_review"}</span>
-                              <button type="button" className="admin-secondary-btn" onClick={() => decideDocument(r.id, "rapport", "accepted")}>Accept</button>
-                              <button type="button" className="admin-secondary-btn" onClick={() => decideDocument(r.id, "rapport", "rejected")}>Reject</button>
+                              {isInternshipDirectorPostApproval(r.status) && r.rapport_status === "pending_review" ? (
+                                <>
+                                  <button type="button" className="admin-secondary-btn" onClick={() => decideDocument(r.id, "rapport", "accepted")}>Accept</button>
+                                  <button type="button" className="admin-secondary-btn" onClick={() => decideDocument(r.id, "rapport", "rejected")}>Reject</button>
+                                </>
+                              ) : null}
                             </div>
                           ) : (
                             <span style={{ color: "#64748b" }}>—</span>
@@ -187,8 +235,12 @@ export default function DirecteurStagePage() {
                               <button type="button" className="admin-secondary-btn" onClick={() => viewFile(r.id, "attestation")}>{t("view")}</button>
                               <span style={{ color: "#475569", fontSize: 12 }}>{r.attestation_name || "attestation"}</span>
                               <span style={{ color: "#0f766e", fontSize: 12 }}>{r.attestation_status || "pending_review"}</span>
-                              <button type="button" className="admin-secondary-btn" onClick={() => decideDocument(r.id, "attestation", "accepted")}>Accept</button>
-                              <button type="button" className="admin-secondary-btn" onClick={() => decideDocument(r.id, "attestation", "rejected")}>Reject</button>
+                              {isInternshipDirectorPostApproval(r.status) && r.attestation_status === "pending_review" ? (
+                                <>
+                                  <button type="button" className="admin-secondary-btn" onClick={() => decideDocument(r.id, "attestation", "accepted")}>Accept</button>
+                                  <button type="button" className="admin-secondary-btn" onClick={() => decideDocument(r.id, "attestation", "rejected")}>Reject</button>
+                                </>
+                              ) : null}
                             </div>
                           ) : (
                             <span style={{ color: "#64748b" }}>—</span>
@@ -200,47 +252,113 @@ export default function DirecteurStagePage() {
                       </div>
                     </td>
                     <td style={{ minWidth: 320 }}>
-                      <div style={{ display: "grid", gap: 6 }}>
-                        <textarea
-                          className="admin-input"
-                          placeholder={tr("Comment", "Commentaire", "تعليق")}
-                          value={decision[r.id]?.director_comment || ""}
-                          onChange={(e) => setDecision((p) => ({ ...p, [r.id]: { ...(p[r.id] || {}), director_comment: e.target.value } }))}
-                        />
-                        <div style={{ display: "flex", gap: 6 }}>
-                          <input
+                      {isInternshipDirectorPostApproval(r.status) && !approvedEditDraft[r.id] ? (
+                        <button type="button" className="admin-primary-btn" onClick={() => openApprovedEdit(r)}>
+                          {tr("Modify", "Modifier", "تعديل")}
+                        </button>
+                      ) : null}
+
+                      {isInternshipDirectorPostApproval(r.status) && approvedEditDraft[r.id] ? (
+                        <div style={{ display: "grid", gap: 6 }}>
+                          <textarea
                             className="admin-input"
-                            type="date"
-                            value={decision[r.id]?.deadline_rapport || ""}
-                            onChange={(e) => setDecision((p) => ({ ...p, [r.id]: { ...(p[r.id] || {}), deadline_rapport: e.target.value } }))}
+                            placeholder={tr("Comment", "Commentaire", "تعليق")}
+                            value={approvedEditDraft[r.id].director_comment}
+                            onChange={(e) =>
+                              setApprovedEditDraft((p) => ({
+                                ...p,
+                                [r.id]: { ...p[r.id], director_comment: e.target.value },
+                              }))
+                            }
                           />
-                          <input
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            <input
+                              className="admin-input"
+                              type="date"
+                              title={tr("Report deadline", "Deadline rapport", "آخر أجل للتقرير")}
+                              value={approvedEditDraft[r.id].deadline_rapport}
+                              onChange={(e) =>
+                                setApprovedEditDraft((p) => ({
+                                  ...p,
+                                  [r.id]: { ...p[r.id], deadline_rapport: e.target.value },
+                                }))
+                              }
+                            />
+                            <input
+                              className="admin-input"
+                              type="date"
+                              title={tr("Attestation deadline", "Deadline attestation", "آخر أجل للشهادة")}
+                              value={approvedEditDraft[r.id].deadline_attestation}
+                              onChange={(e) =>
+                                setApprovedEditDraft((p) => ({
+                                  ...p,
+                                  [r.id]: { ...p[r.id], deadline_attestation: e.target.value },
+                                }))
+                              }
+                            />
+                          </div>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            <button type="button" className="admin-primary-btn" onClick={() => saveApprovedMeta(r.id)}>
+                              {tr("Save", "Enregistrer", "حفظ")}
+                            </button>
+                            <button type="button" className="admin-secondary-btn" onClick={() => closeApprovedEdit(r.id)}>
+                              {tr("Cancel", "Annuler", "إلغاء")}
+                            </button>
+                            <button
+                              type="button"
+                              className="admin-secondary-btn"
+                              style={{ borderColor: "#ef4444", color: "#ef4444" }}
+                              onClick={() => remove(r.id)}
+                            >
+                              {tr("Delete", "Supprimer", "حذف")}
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {!isInternshipDirectorPostApproval(r.status) ? (
+                        <div style={{ display: "grid", gap: 6 }}>
+                          <textarea
                             className="admin-input"
-                            type="date"
-                            value={decision[r.id]?.deadline_attestation || ""}
-                            onChange={(e) => setDecision((p) => ({ ...p, [r.id]: { ...(p[r.id] || {}), deadline_attestation: e.target.value } }))}
+                            placeholder={tr("Comment", "Commentaire", "تعليق")}
+                            value={decision[r.id]?.director_comment || ""}
+                            onChange={(e) => setDecision((p) => ({ ...p, [r.id]: { ...(p[r.id] || {}), director_comment: e.target.value } }))}
                           />
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <input
+                              className="admin-input"
+                              type="date"
+                              value={decision[r.id]?.deadline_rapport || ""}
+                              onChange={(e) => setDecision((p) => ({ ...p, [r.id]: { ...(p[r.id] || {}), deadline_rapport: e.target.value } }))}
+                            />
+                            <input
+                              className="admin-input"
+                              type="date"
+                              value={decision[r.id]?.deadline_attestation || ""}
+                              onChange={(e) => setDecision((p) => ({ ...p, [r.id]: { ...(p[r.id] || {}), deadline_attestation: e.target.value } }))}
+                            />
+                          </div>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            <button
+                              className="admin-primary-btn"
+                              onClick={() => decide(r.id, "approved")}
+                              disabled={!r.signed_demande_url}
+                              title={!r.signed_demande_url ? "Demande signée requise" : ""}
+                            >
+                              {tr("Approve", "Approuver", "قبول")}
+                            </button>
+                            <button className="admin-secondary-btn" onClick={() => decide(r.id, "rejected")}>{tr("Reject", "Rejeter", "رفض")}</button>
+                            <button
+                              className="admin-secondary-btn"
+                              style={{ borderColor: "#ef4444", color: "#ef4444" }}
+                              onClick={() => remove(r.id)}
+                              title={tr("Delete", "Supprimer", "حذف")}
+                            >
+                              {tr("Delete", "Supprimer", "حذف")}
+                            </button>
+                          </div>
                         </div>
-                        <div style={{ display: "flex", gap: 6 }}>
-                          <button
-                            className="admin-primary-btn"
-                            onClick={() => decide(r.id, "approved")}
-                            disabled={!r.signed_demande_url}
-                            title={!r.signed_demande_url ? "Demande signée requise" : ""}
-                          >
-                            {tr("Approve", "Approuver", "قبول")}
-                          </button>
-                          <button className="admin-secondary-btn" onClick={() => decide(r.id, "rejected")}>{tr("Reject", "Rejeter", "رفض")}</button>
-                          <button
-                            className="admin-secondary-btn"
-                            style={{ borderColor: "#ef4444", color: "#ef4444" }}
-                            onClick={() => remove(r.id)}
-                            title={tr("Delete", "Supprimer", "حذف")}
-                          >
-                            {tr("Delete", "Supprimer", "حذف")}
-                          </button>
-                        </div>
-                      </div>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

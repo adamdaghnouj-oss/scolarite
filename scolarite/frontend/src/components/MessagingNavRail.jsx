@@ -1,6 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { api } from "../api/axios";
-import { clearAuth, getStoredRole } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import { useLanguage } from "../i18n/LanguageContext";
 
 function cn(active) {
@@ -14,7 +13,8 @@ export default function MessagingNavRail({ classTabActive = false, onClassClick 
   const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
-  const role = getStoredRole();
+  const auth = useAuth();
+  const role = auth.role;
   const p = location.pathname || "";
   const qp = new URLSearchParams(location.search || "");
 
@@ -28,14 +28,8 @@ export default function MessagingNavRail({ classTabActive = false, onClassClick 
   const isClassRoute = isStudentMessages && qp.get("tab") === "class";
 
   async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
+    await auth.logout();
+    navigate("/login");
   }
 
   const railInitial = role === "professeur" ? "P" : "É";

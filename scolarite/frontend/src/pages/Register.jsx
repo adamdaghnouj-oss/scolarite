@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
-import { getStoredRole, isAuthed, setAuth } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import "./AuthPage.css";
 import authImg from "../assets/0ee83043fa17432d636e62339bf14c06.gif";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -33,15 +33,16 @@ export default function Register() {
   const navigate = useNavigate();
   const liveTime = useLiveTime();
   const { t } = useLanguage();
+  const auth = useAuth();
 
   useEffect(() => {
-    if (!isAuthed()) return;
-    const role = getStoredRole();
+    if (auth.loading || !auth.isAuthed) return;
+    const role = auth.role;
     if (role === "administrateur") navigate("/admin", { replace: true });
     else if (role === "directeur_etudes") navigate("/directeur/classes", { replace: true });
     else if (role === "directeur_stage") navigate("/directeur-stage/internships", { replace: true });
     else if (role === "professeur") navigate("/professeur", { replace: true });
-  }, [navigate]);
+  }, [auth.loading, auth.isAuthed, auth.role, navigate]);
 
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
@@ -163,10 +164,9 @@ export default function Register() {
     setError("");
     setSuccess("");
     try {
-      const res = await api.post("/verify-otp", { email, code: otpCode });
-      setAuth(res.data.token, res.data.user);
+      const res = await auth.verifyOtp({ email, code: otpCode });
       setSuccess("Email vérifié avec succès !");
-      const userRole = res.data.user?.role;
+      const userRole = res.user?.role;
       setTimeout(() => {
         if (userRole === "administrateur" || userRole === "directeur_etudes" || userRole === "directeur_stage") {
           navigate(
@@ -339,7 +339,7 @@ export default function Register() {
               <>
                 <label className="auth-label">Rôle</label>
                 <div className="auth-role-cards">
-                  {ROLES.map((r) => (
+                  {ROLES.filter((r) => r.id === "student").map((r) => (
                     <button
                       key={r.id}
                       type="button"

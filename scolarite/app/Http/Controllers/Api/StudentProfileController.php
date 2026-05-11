@@ -239,7 +239,7 @@ class StudentProfileController extends Controller
                 ['matricule' => null, 'departement' => null]
             );
 
-            $request->validate(['file' => 'required|file|max:10240']);
+            $request->validate(['file' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120']);
 
             if ($prof->$field) {
                 Storage::disk('public')->delete($prof->$field);
@@ -261,7 +261,10 @@ class StudentProfileController extends Controller
             return response()->json(['message' => 'Student not found.'], 404);
         }
 
-        $request->validate(['file' => 'required|file|max:10240']); // 10MB max
+        $fileRule = in_array($field, ['profile_picture', 'cover_photo'], true)
+            ? 'required|image|mimes:jpg,jpeg,png,webp|max:5120'
+            : 'required|file|mimes:pdf,jpg,jpeg,png,webp|max:10240';
+        $request->validate(['file' => $fileRule]);
 
         // Delete old file
         if ($student->$field) {
@@ -290,9 +293,11 @@ class StudentProfileController extends Controller
                 break;
             case 'certificate_achievement':
                 $statusUpdate['certificate_achievement_status'] = 'pending';
+                $statusUpdate['certificate_status'] = 'pending';
                 break;
             case 'academic_transcript':
                 $statusUpdate['academic_transcript_status'] = 'pending';
+                $statusUpdate['transcript_status'] = 'pending';
                 break;
         }
 

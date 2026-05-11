@@ -24,14 +24,18 @@ use App\Http\Controllers\Api\DoubleCorrectionRequestController;
 use App\Http\Controllers\Api\InternshipController;
 use App\Http\Controllers\Api\AdminMessageMonitorController;
 
-Route::post('/register',[AuthController::class,'register']);
-Route::post('/login',[AuthController::class,'login']);
-Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
-Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+Route::middleware('throttle:10,1')->group(function () {
+    Route::post('/register',[AuthController::class,'register']);
+    Route::post('/login',[AuthController::class,'login']);
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+});
 
 // OTP Verification routes
-Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
-Route::post('/resend-otp', [AuthController::class, 'resendOtp']);
+Route::middleware('throttle:6,1')->group(function () {
+    Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
+    Route::post('/resend-otp', [AuthController::class, 'resendOtp']);
+});
 
 Route::get('/departements', [ClasseController::class, 'departements']);
 
@@ -73,6 +77,11 @@ Route::middleware('auth:sanctum')->group(function(){
         // Double correction requests from students
         Route::get('/professeur/double-corrections', [DoubleCorrectionRequestController::class, 'professeurIndex']);
         Route::post('/professeur/double-corrections/{id}/decision', [DoubleCorrectionRequestController::class, 'professeurDecide']);
+
+        // Internship soutenance: jury member publishes schedule for students
+        Route::get('/professeur/internships/soutenance-pending', [InternshipController::class, 'professeurSoutenancePending']);
+        Route::post('/professeur/internships/{id}/soutenance-publish', [InternshipController::class, 'professeurSoutenancePublish']);
+        Route::get('/professeur/internships/encadrement', [InternshipController::class, 'professeurEncadrementIndex']);
     });
 
     // Student profile
@@ -86,15 +95,17 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-// User management routes (open for admin use)
-Route::get('/students', [UserManagementController::class, 'indexStudents']);
-Route::post('/students', [UserManagementController::class, 'storeStudent']);
-Route::get('/professeurs', [UserManagementController::class, 'indexProfesseurs']);
-Route::post('/professeurs', [UserManagementController::class, 'storeProfesseur']);
-Route::get('/administrateurs', [UserManagementController::class, 'indexAdministrateurs']);
-Route::post('/administrateurs', [UserManagementController::class, 'storeAdministrateur']);
-Route::get('/directeurs-etudes', [UserManagementController::class, 'indexDirecteursEtudes']);
-Route::post('/directeurs-etudes', [UserManagementController::class, 'storeDirecteurEtudes']);
+// User management routes (admin only)
+Route::middleware(['auth:sanctum', 'role:administrateur'])->group(function () {
+    Route::get('/students', [UserManagementController::class, 'indexStudents']);
+    Route::post('/students', [UserManagementController::class, 'storeStudent']);
+    Route::get('/professeurs', [UserManagementController::class, 'indexProfesseurs']);
+    Route::post('/professeurs', [UserManagementController::class, 'storeProfesseur']);
+    Route::get('/administrateurs', [UserManagementController::class, 'indexAdministrateurs']);
+    Route::post('/administrateurs', [UserManagementController::class, 'storeAdministrateur']);
+    Route::get('/directeurs-etudes', [UserManagementController::class, 'indexDirecteursEtudes']);
+    Route::post('/directeurs-etudes', [UserManagementController::class, 'storeDirecteurEtudes']);
+});
 
 // Classes list (needed by students to pick their class)
 Route::middleware(['auth:sanctum'])->group(function () {
@@ -157,15 +168,16 @@ Route::middleware(['auth:sanctum', 'role:directeur_etudes'])->group(function () 
     Route::delete('/directeur/professeur-documents/{id}', [ProfessorDocumentController::class, 'directeurDestroy']);
 });
 
-// Student account management (for admin to review student information)
-Route::get('/accounts/students', [UserManagementController::class, 'indexStudentAccounts']);
-Route::get('/accounts/students/{id}', [UserManagementController::class, 'showStudentAccount']);
-Route::put('/accounts/students/{id}/status', [UserManagementController::class, 'updateStudentInfoStatus']);
+// Student account management and profile approval (admin only)
+Route::middleware(['auth:sanctum', 'role:administrateur'])->group(function () {
+    Route::get('/accounts/students', [UserManagementController::class, 'indexStudentAccounts']);
+    Route::get('/accounts/students/{id}', [UserManagementController::class, 'showStudentAccount']);
+    Route::put('/accounts/students/{id}/status', [UserManagementController::class, 'updateStudentInfoStatus']);
 
-// Profile approval routes (admin only)
-Route::get('/profiles/pending', [UserManagementController::class, 'getPendingProfiles']);
-Route::post('/profiles/{id}/approve', [UserManagementController::class, 'approveStudentProfile']);
-Route::post('/profiles/{id}/reject', [UserManagementController::class, 'rejectStudentProfile']);
+    Route::get('/profiles/pending', [UserManagementController::class, 'getPendingProfiles']);
+    Route::post('/profiles/{id}/approve', [UserManagementController::class, 'approveStudentProfile']);
+    Route::post('/profiles/{id}/reject', [UserManagementController::class, 'rejectStudentProfile']);
+});
 
 // Plans d'etude (directeur des etudes + admin)
 Route::middleware(['auth:sanctum', 'role:administrateur,directeur_etudes'])->group(function () {
@@ -301,7 +313,16 @@ Route::middleware(['auth:sanctum', 'role:student'])->group(function () {
 // Directeur de stage
 Route::middleware(['auth:sanctum', 'role:directeur_stage'])->group(function () {
     Route::get('/directeur-stage/internships', [InternshipController::class, 'directeurIndex']);
+    Route::get('/directeur-stage/internships/soutenance-board', [InternshipController::class, 'directeurSoutenanceBoard']);
+    Route::patch('/directeur-stage/internships/{id}/soutenance', [InternshipController::class, 'directeurSoutenanceUpdate']);
+    Route::post('/directeur-stage/internships/{id}/soutenance/publish', [InternshipController::class, 'directeurSoutenancePublish']);
+    Route::post('/directeur-stage/internships/{id}/soutenance/unpublish', [InternshipController::class, 'directeurSoutenanceUnpublish']);
+    Route::get('/directeur-stage/classes/{classId}/internships-soutenance-pdf', [InternshipController::class, 'directeurSoutenanceClassPdf']);
+    Route::get('/directeur-stage/internships/encadrement-board', [InternshipController::class, 'directeurEncadrementBoard']);
+    Route::patch('/directeur-stage/internships/{id}/encadrement', [InternshipController::class, 'directeurEncadrementUpdate']);
+    Route::get('/directeur-stage/classes/{classId}/internships-encadrement-pdf', [InternshipController::class, 'directeurEncadrementClassPdf']);
     Route::post('/directeur-stage/internships/{id}/decision', [InternshipController::class, 'directeurDecision']);
+    Route::patch('/directeur-stage/internships/{id}/approved-meta', [InternshipController::class, 'directeurUpdateApprovedMeta']);
     Route::post('/directeur-stage/internships/{id}/document-decision', [InternshipController::class, 'directeurDocumentDecision']);
     Route::delete('/directeur-stage/internships/{id}', [InternshipController::class, 'directeurDestroy']);
     Route::get('/directeur-stage/internships/{id}/files/{kind}/view', [InternshipController::class, 'directeurViewFile']);

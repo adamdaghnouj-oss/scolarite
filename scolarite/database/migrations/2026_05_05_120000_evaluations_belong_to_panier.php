@@ -19,20 +19,35 @@ return new class extends Migration
             });
         }
 
-        // Denormalize panier from module
-        DB::statement('
-            UPDATE evaluations e
-            INNER JOIN modules m ON m.id = e.module_id
-            SET e.panier_id = m.panier_id
-            WHERE e.module_id IS NOT NULL AND e.panier_id IS NULL
-        ');
+        // Denormalize panier from module.
+        DB::table('evaluations')
+            ->whereNotNull('module_id')
+            ->whereNull('panier_id')
+            ->orderBy('id')
+            ->chunkById(100, function ($evaluations) {
+                $moduleIds = $evaluations->pluck('module_id')->filter()->unique()->values();
+                $panierIdsByModuleId = DB::table('modules')
+                    ->whereIn('id', $moduleIds)
+                    ->pluck('panier_id', 'id');
+
+                foreach ($evaluations as $evaluation) {
+                    $panierId = $panierIdsByModuleId[$evaluation->module_id] ?? null;
+                    if ($panierId) {
+                        DB::table('evaluations')
+                            ->where('id', $evaluation->id)
+                            ->update(['panier_id' => $panierId]);
+                    }
+                }
+            });
 
         // Drop FK on module_id so we can null it and dedupe
         Schema::table('evaluations', function (Blueprint $table) {
             $table->dropForeign(['module_id']);
         });
 
-        DB::statement('ALTER TABLE evaluations MODIFY module_id BIGINT UNSIGNED NULL');
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('ALTER TABLE evaluations MODIFY module_id BIGINT UNSIGNED NULL');
+        }
 
         Schema::table('evaluations', function (Blueprint $table) {
             $table->foreign('module_id')->references('id')->on('modules')->nullOnDelete();
@@ -69,7 +84,9 @@ return new class extends Migration
             $table->dropForeign(['module_id']);
         });
 
-        DB::statement('ALTER TABLE evaluations MODIFY module_id BIGINT UNSIGNED NOT NULL');
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('ALTER TABLE evaluations MODIFY module_id BIGINT UNSIGNED NOT NULL');
+        }
 
         Schema::table('evaluations', function (Blueprint $table) {
             $table->foreign('module_id')->references('id')->on('modules')->cascadeOnDelete();

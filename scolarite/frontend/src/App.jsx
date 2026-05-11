@@ -47,6 +47,9 @@ import ProfessorDocumentsTimetablePage from "./pages/ProfessorDocumentsTimetable
 import ProfessorDocumentsExamSurveillancePage from "./pages/ProfessorDocumentsExamSurveillancePage";
 import StudentInternshipsPage from "./pages/StudentInternshipsPage";
 import DirecteurStagePage from "./pages/DirecteurStagePage";
+import DirecteurStageSoutenancePage from "./pages/DirecteurStageSoutenancePage";
+import DirecteurStageEncadrementPage from "./pages/DirecteurStageEncadrementPage";
+import ProfessorInternshipSoutenancePage from "./pages/ProfessorInternshipSoutenancePage";
 import AdminMessagesMonitorPage from "./pages/AdminMessagesMonitorPage";
 
 export default function App() {
@@ -138,7 +141,14 @@ export default function App() {
             </RoleProtectedRoute>
           }
         />
-        <Route path="/profile" element={<StudentProfile />} />
+        <Route
+          path="/profile"
+          element={
+            <RoleProtectedRoute allow={["student", "professeur", "administrateur", "directeur_etudes", "directeur_stage"]}>
+              <StudentProfile />
+            </RoleProtectedRoute>
+          }
+        />
         <Route
           path="/student/plans"
           element={
@@ -310,6 +320,22 @@ export default function App() {
           }
         />
         <Route
+          path="/directeur-stage/soutenance"
+          element={
+            <RoleProtectedRoute allow={["directeur_stage"]}>
+              <DirecteurStageSoutenancePage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/directeur-stage/encadrement-pfe"
+          element={
+            <RoleProtectedRoute allow={["directeur_stage"]}>
+              <DirecteurStageEncadrementPage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
           path="/professeur"
           element={
             <RoleProtectedRoute allow={["professeur"]}>
@@ -354,6 +380,14 @@ export default function App() {
           element={
             <RoleProtectedRoute allow={["professeur"]}>
               <ProfessorDocumentsExamSurveillancePage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/professeur/internships/soutenance"
+          element={
+            <RoleProtectedRoute allow={["professeur"]}>
+              <ProfessorInternshipSoutenancePage />
             </RoleProtectedRoute>
           }
         />

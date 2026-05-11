@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
 import { useLanguage } from "../i18n/LanguageContext";
-import { clearAuth } from "../auth/auth";
+import { useAuth } from "../auth/useAuth";
 import "./StudentPlansPage.css";
 
 export default function StudentPlansPage() {
   const { t } = useLanguage();
   const navigate = useNavigate();
-  // eslint-disable-next-line import/no-unresolved
+  const auth = useAuth();
   const topHeroGif = new URL("../assets/ca262e0354eea311c41134c3e4bc3bc2.gif", import.meta.url).toString();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -19,14 +19,8 @@ export default function StudentPlansPage() {
   const [treeLoading, setTreeLoading] = useState(false);
 
   async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
+    await auth.logout();
+    navigate("/login");
   }
 
   useEffect(() => {

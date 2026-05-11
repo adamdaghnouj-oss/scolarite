@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
-import { clearAuth } from "../auth/auth";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./AdminPanel.css";
+import StaffSidebar from "../components/StaffSidebar";
 
 function formatDate(iso) {
   if (!iso) return "";
@@ -22,7 +21,6 @@ function classLevelLabel(value, tr) {
 }
 
 export default function AdminTimetablePage() {
-  const navigate = useNavigate();
   const { language } = useLanguage();
   const tr = (en, fr, ar) => (language === "fr" ? fr : language === "ar" ? ar : en);
 
@@ -71,17 +69,6 @@ export default function AdminTimetablePage() {
     if (!semestreId && semestres.length) setSemestreId(String(semestres[0].id));
   }, [semestres, semestreId]);
 
-  async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
-  }
-
   async function submit(e) {
     e.preventDefault();
     if (!classId || !file) return;
@@ -129,29 +116,7 @@ export default function AdminTimetablePage() {
 
   return (
     <div className="admin-wrap">
-      <aside className="admin-sidebar">
-        <div className="admin-brand">
-          <div className="admin-brand-mark" aria-hidden="true">S</div>
-          <div className="admin-brand-text">
-            <div className="admin-brand-title">Scolarité</div>
-            <div className="admin-brand-subtitle">{tr("Director of Studies", "Directeur des Etudes", "مدير الدراسات")}</div>
-          </div>
-        </div>
-        <nav className="admin-nav">
-          <Link className="admin-nav-item" to="/">{tr("Home", "Accueil", "الرئيسية")}</Link>
-          <Link className="admin-nav-item" to="/directeur/classes">{tr("Classes", "Classes", "الأقسام")}</Link>
-          <Link className="admin-nav-item" to="/directeur/plans">{tr("Study plans", "Plans d'etude", "مخططات الدراسة")}</Link>
-          <Link className="admin-nav-item" to="/directeur/prof-assignments">{tr("Profs / subjects (panier)", "Profs / matieres (panier)", "الأساتذة / المواد")}</Link>
-          <Link className="admin-nav-item admin-nav-item--active" to="/directeur/timetable">{tr("Timetable", "Emploi du temps", "جدول التوقيت")}</Link>
-          <Link className="admin-nav-item" to="/directeur/exam-calendar">{tr("Exam calendar", "Calendrier des examens", "رزنامة الامتحانات")}</Link>
-          <Link className="admin-nav-item" to="/change-password">{tr("Change password", "Changer le mot de passe", "تغيير كلمة المرور")}</Link>
-        </nav>
-        <div className="admin-sidebar-footer">
-          <button type="button" className="admin-secondary-btn" style={{ width: "100%" }} onClick={handleLogout}>
-            {tr("Logout", "Deconnexion", "تسجيل الخروج")}
-          </button>
-        </div>
-      </aside>
+      <StaffSidebar variant="directeur" />
 
       <main className="admin-main">
         <header className="admin-topbar">

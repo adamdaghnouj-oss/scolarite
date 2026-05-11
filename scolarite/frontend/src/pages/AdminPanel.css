@@ -76,6 +76,7 @@
   position: sticky;
   top: 0;
   overflow: hidden;
+  min-height: 0;
 }
 
 .admin-brand {
@@ -86,6 +87,7 @@
   border-radius: 14px;
   background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(59, 130, 246, 0.08));
   border: 1px solid rgba(148, 163, 184, 0.25);
+  flex-shrink: 0;
 }
 
 .admin-brand-mark {
@@ -115,6 +117,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1 1 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   min-height: 0;

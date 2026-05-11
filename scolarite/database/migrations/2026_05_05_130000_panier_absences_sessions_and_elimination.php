@@ -16,19 +16,34 @@ return new class extends Migration
         }
 
         if (Schema::hasTable('module_course_sessions') && Schema::hasColumn('module_course_sessions', 'panier_id')) {
-            DB::statement('
-                UPDATE module_course_sessions s
-                INNER JOIN modules m ON m.id = s.module_id
-                SET s.panier_id = m.panier_id
-                WHERE s.panier_id IS NULL AND s.module_id IS NOT NULL
-            ');
+            DB::table('module_course_sessions')
+                ->whereNull('panier_id')
+                ->whereNotNull('module_id')
+                ->orderBy('id')
+                ->chunkById(100, function ($sessions) {
+                    $moduleIds = $sessions->pluck('module_id')->filter()->unique()->values();
+                    $panierIdsByModuleId = DB::table('modules')
+                        ->whereIn('id', $moduleIds)
+                        ->pluck('panier_id', 'id');
+
+                    foreach ($sessions as $session) {
+                        $panierId = $panierIdsByModuleId[$session->module_id] ?? null;
+                        if ($panierId) {
+                            DB::table('module_course_sessions')
+                                ->where('id', $session->id)
+                                ->update(['panier_id' => $panierId]);
+                        }
+                    }
+                });
         }
 
         if (Schema::hasTable('module_course_sessions')) {
             Schema::table('module_course_sessions', function (Blueprint $table) {
                 $table->dropForeign(['module_id']);
             });
-            DB::statement('ALTER TABLE module_course_sessions MODIFY module_id BIGINT UNSIGNED NULL');
+            if (DB::getDriverName() === 'mysql') {
+                DB::statement('ALTER TABLE module_course_sessions MODIFY module_id BIGINT UNSIGNED NULL');
+            }
             Schema::table('module_course_sessions', function (Blueprint $table) {
                 $table->foreign('module_id')->references('id')->on('modules')->nullOnDelete();
             });
@@ -66,7 +81,9 @@ return new class extends Migration
             Schema::table('module_course_sessions', function (Blueprint $table) {
                 $table->dropForeign(['module_id']);
             });
-            DB::statement('ALTER TABLE module_course_sessions MODIFY module_id BIGINT UNSIGNED NOT NULL');
+            if (DB::getDriverName() === 'mysql') {
+                DB::statement('ALTER TABLE module_course_sessions MODIFY module_id BIGINT UNSIGNED NOT NULL');
+            }
             Schema::table('module_course_sessions', function (Blueprint $table) {
                 $table->foreign('module_id')->references('id')->on('modules')->cascadeOnDelete();
             });

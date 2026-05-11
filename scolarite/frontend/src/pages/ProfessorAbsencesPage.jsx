@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
-import { clearAuth } from "../auth/auth";
 import "./AdminPanel.css";
 import { useLanguage } from "../i18n/LanguageContext";
+import StaffSidebar from "../components/StaffSidebar";
 
 function selectionKey(classId, year) {
   return `${classId}|${year}`;
 }
 
 export default function ProfessorAbsencesPage() {
-  const navigate = useNavigate();
-  const { language, t } = useLanguage();
+  const { language } = useLanguage();
   const tr = (en, fr) => (language === "fr" ? fr : en);
 
   const [payload, setPayload] = useState(null);
@@ -168,17 +166,6 @@ export default function ProfessorAbsencesPage() {
     loadOverview();
   }, [loadOverview]);
 
-  async function handleLogout() {
-    try {
-      await api.post("/logout");
-    } catch {
-      // ignore
-    } finally {
-      clearAuth();
-      navigate("/login");
-    }
-  }
-
   function setStatusFor(studentId, status) {
     setDraftAttendance((prev) => ({ ...prev, [studentId]: status }));
   }
@@ -275,66 +262,7 @@ export default function ProfessorAbsencesPage() {
   const sessions = overview?.sessions ?? [];
   return (
     <div className="admin-wrap">
-      <aside className="admin-sidebar">
-        <div className="admin-brand">
-          <div className="admin-brand-mark" aria-hidden="true">
-            P
-          </div>
-          <div className="admin-brand-text">
-            <div className="admin-brand-title">Scolarité</div>
-            <div className="admin-brand-subtitle">{tr("Professor", "Professeur")}</div>
-          </div>
-        </div>
-
-        <nav className="admin-nav">
-          <p className="admin-nav-section-label">{tr("Menu", "Menu")}</p>
-          <Link className="admin-nav-item" to="/">
-            {tr("Home", "Accueil")}
-          </Link>
-          <p className="admin-nav-section-label">{tr("Teaching", "Enseignement")}</p>
-          <Link className="admin-nav-item" to="/professeur">
-            {tr("My classes", "Mes classes")}
-          </Link>
-          <Link className="admin-nav-item" to="/professeur/notes">
-            {tr("Grades", "Notes")}
-          </Link>
-          <Link className="admin-nav-item admin-nav-item--active" to="/professeur/absences">
-            {tr("Absences", "Absences")}
-          </Link>
-          <Link className="admin-nav-item" to="/professeur/attendance-certificates">
-            {t("menuAttendanceCert")}
-          </Link>
-          <Link className="admin-nav-item" to="/professeur/timetable">
-            {tr("Timetable", "Emploi du temps")}
-          </Link>
-          <Link className="admin-nav-item" to="/professeur/exam-surveillance">
-            {tr("Exam surveillance", "Surveillance examens")}
-          </Link>
-          <p className="admin-nav-section-label">{tr("Campus", "Campus")}</p>
-          <Link className="admin-nav-item" to="/student/posts">
-            {tr("Posts", "Publications")}
-          </Link>
-          <Link className="admin-nav-item" to="/student/friends">
-            {tr("Friends", "Reseau")}
-          </Link>
-          <Link className="admin-nav-item" to="/messages/panier">
-            {tr("Panier messages", "Messages panier")}
-          </Link>
-          <p className="admin-nav-section-label">{tr("Account", "Compte")}</p>
-          <Link className="admin-nav-item" to="/profile">
-            {tr("Profile", "Profil")}
-          </Link>
-          <Link className="admin-nav-item" to="/change-password">
-            {tr("Change password", "Changer le mot de passe")}
-          </Link>
-        </nav>
-
-        <div className="admin-sidebar-footer">
-          <button type="button" className="admin-secondary-btn" style={{ width: "100%" }} onClick={handleLogout}>
-            {tr("Logout", "Déconnexion")}
-          </button>
-        </div>
-      </aside>
+      <StaffSidebar variant="professeur" />
 
       <main className="admin-main admin-main--professor">
         <header className="admin-topbar">
